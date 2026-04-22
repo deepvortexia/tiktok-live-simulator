@@ -16,6 +16,21 @@ const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,1
 
 const CREATURE_COLOR = { red: "#ff0044", blue: "#00ccff" };
 
+const RED_GIFTS = [
+  { emoji: "🌹", label: "Rose",    cost:  1, count: 1, radius: 2, interval: 25 },
+  { emoji: "🔥", label: "Fire",    cost:  3, count: 1, radius: 3, interval: 12 },
+  { emoji: "👑", label: "Crown",   cost:  5, count: 2, radius: 4, interval:  6 },
+  { emoji: "💎", label: "Diamond", cost: 10, count: 3, radius: 5, interval: 18 },
+  { emoji: "🚀", label: "Rocket",  cost: 25, count: 2, radius: 3, interval: 12 },
+];
+const BLUE_GIFTS = [
+  { emoji: "💧", label: "Drop",      cost:  1, count: 1, radius: 2, interval: 25 },
+  { emoji: "⚡", label: "Lightning", cost:  3, count: 1, radius: 3, interval: 12 },
+  { emoji: "🌊", label: "Wave",      cost:  5, count: 2, radius: 4, interval:  6 },
+  { emoji: "🔷", label: "Crystal",   cost: 10, count: 3, radius: 5, interval: 18 },
+  { emoji: "🌌", label: "Universe",  cost: 25, count: 2, radius: 3, interval: 12 },
+];
+
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
 
 // ── TikTok comment feed ────────────────────────────────────────────────────
@@ -133,21 +148,23 @@ function bfsPath(grid, cols, rows, sx, sy, isTarget) {
   return null;
 }
 
-function makeCreature(x, y, team) {
+function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   return {
     x, y, team,
     state: "SEEKING",
     path: null,
     pixel: null,
     trail: [],
-    moveTimer: Math.floor(Math.random() * CREATURE_INTERVAL),
+    radius,
+    interval,
+    moveTimer: Math.floor(Math.random() * interval),
   };
 }
 
 function stepCreature(c, grid, cols, rows, pixels, bases, scoreAcc, crystals) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
-  c.moveTimer = CREATURE_INTERVAL;
+  c.moveTimer = c.interval;
 
   if (!c.path || c.path.length === 0) {
     if (c.state === "SEEKING") {
@@ -433,7 +450,7 @@ export default function LabyrinthLive() {
             ctx.restore();
           }
 
-          const r         = 4 * danceScale;
+          const r         = c.radius * danceScale;
           const glowPulse = 20 + Math.sin(time * 0.005 + cx) * 10;
           ctx.shadowBlur  = glowPulse * (dancing ? 2 : 1);
           ctx.shadowColor = bodyColor;
@@ -446,11 +463,12 @@ export default function LabyrinthLive() {
           ctx.arc(cx, cy, r, 0, Math.PI * 2);
           ctx.fill();
 
+          // White core scales with creature size
           ctx.shadowBlur  = 8;
           ctx.shadowColor = "#ffffff";
           ctx.fillStyle   = "#ffffff";
           ctx.beginPath();
-          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+          ctx.arc(cx, cy, Math.max(1, c.radius * 0.35), 0, Math.PI * 2);
           ctx.fill();
         }
 
@@ -504,6 +522,18 @@ export default function LabyrinthLive() {
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
+
+  const spawnForTeam = (team, radius, interval, count) => {
+    const grid  = gridRef.current;
+    const cols  = colsRef.current;
+    const rows  = rowsRef.current;
+    const bases = basesRef.current;
+    if (!grid || !bases[team]) return;
+    const b = bases[team];
+    const spots = placeOnPath(grid, rows, b.xMin, b.xMax + 1, count);
+    for (const { x, y } of spots)
+      creaturesRef.current.push(makeCreature(x, y, team, radius, interval));
+  };
 
   const pad2 = n => String(n).padStart(2, "0");
 
@@ -585,6 +615,64 @@ export default function LabyrinthLive() {
           }}>
             {c.text}
           </div>
+        ))}
+      </div>
+
+      {/* Red gift buttons — left column */}
+      <div style={{
+        position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+        display: "flex", flexDirection: "column", gap: 5, zIndex: 10,
+      }}>
+        {RED_GIFTS.map(g => (
+          <button
+            key={g.label}
+            onClick={() => spawnForTeam("red", g.radius, g.interval, g.count)}
+            style={{
+              background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,45,85,0.25)",
+              borderLeft: "2px solid rgba(255,45,85,0.7)",
+              borderRadius: 8, color: "#fff",
+              fontSize: 11, fontFamily: "'Courier New', monospace",
+              padding: "5px 8px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5,
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,45,85,0.18)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
+          >
+            <span>{g.emoji}</span>
+            <span style={{ color: RED.mid }}>{g.label}</span>
+            <span style={{ opacity: 0.55, marginLeft: 2 }}>{g.cost}pt</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Blue gift buttons — right column */}
+      <div style={{
+        position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+        display: "flex", flexDirection: "column", gap: 5, zIndex: 10,
+      }}>
+        {BLUE_GIFTS.map(g => (
+          <button
+            key={g.label}
+            onClick={() => spawnForTeam("blue", g.radius, g.interval, g.count)}
+            style={{
+              background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
+              border: "1px solid rgba(56,189,248,0.25)",
+              borderRight: "2px solid rgba(56,189,248,0.7)",
+              borderRadius: 8, color: "#fff",
+              fontSize: 11, fontFamily: "'Courier New', monospace",
+              padding: "5px 8px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5,
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(56,189,248,0.18)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
+          >
+            <span style={{ opacity: 0.55, marginRight: 2 }}>{g.cost}pt</span>
+            <span style={{ color: BLUE.mid }}>{g.label}</span>
+            <span>{g.emoji}</span>
+          </button>
         ))}
       </div>
 
