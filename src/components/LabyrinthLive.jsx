@@ -611,7 +611,7 @@ export default function LabyrinthLive() {
       {/* Red gift buttons — left column */}
       <div style={{
         position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-        display: "flex", flexDirection: "column", gap: 5, zIndex: 10,
+        display: "flex", flexDirection: "column", gap: 3, zIndex: 10,
       }}>
         {RED_GIFTS.map(g => (
           <button
@@ -621,18 +621,19 @@ export default function LabyrinthLive() {
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,45,85,0.25)",
               borderLeft: "2px solid rgba(255,45,85,0.7)",
-              borderRadius: 8, color: "#fff",
-              fontSize: 11, fontFamily: "'Courier New', monospace",
-              padding: "5px 8px", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 5,
+              borderRadius: 6, color: "#fff",
+              fontSize: 10, fontFamily: "'Courier New', monospace",
+              padding: "3px 6px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 4,
               whiteSpace: "nowrap",
             }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,45,85,0.18)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
           >
-            <img src={g.icon} alt={g.label} style={{ width: 28, height: 28, objectFit: "contain" }} />
-            <span style={{ color: RED.mid }}>{g.label}</span>
-            <span style={{ opacity: 0.55, marginLeft: 2 }}>{g.cost}pt</span>
+            <img src={g.icon} alt={g.label} style={{ width: 22, height: 22, objectFit: "contain" }} />
+            <span style={{ color: g.rush ? "#ffe066" : RED.mid }}>
+              {g.rush ? "⚡ RUSH" : g.count === 1 ? "+1 crawler" : `+${g.count} crawlers`}
+            </span>
           </button>
         ))}
       </div>
@@ -640,7 +641,7 @@ export default function LabyrinthLive() {
       {/* Blue gift buttons — right column */}
       <div style={{
         position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-        display: "flex", flexDirection: "column", gap: 5, zIndex: 10,
+        display: "flex", flexDirection: "column", gap: 3, zIndex: 10,
       }}>
         {BLUE_GIFTS.map(g => (
           <button
@@ -650,18 +651,19 @@ export default function LabyrinthLive() {
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(56,189,248,0.25)",
               borderRight: "2px solid rgba(56,189,248,0.7)",
-              borderRadius: 8, color: "#fff",
-              fontSize: 11, fontFamily: "'Courier New', monospace",
-              padding: "5px 8px", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 5,
+              borderRadius: 6, color: "#fff",
+              fontSize: 10, fontFamily: "'Courier New', monospace",
+              padding: "3px 6px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 4,
               whiteSpace: "nowrap",
             }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(56,189,248,0.18)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
           >
-            <span style={{ opacity: 0.55, marginRight: 2 }}>{g.cost}pt</span>
-            <span style={{ color: BLUE.mid }}>{g.label}</span>
-            <img src={g.icon} alt={g.label} style={{ width: 28, height: 28, objectFit: "contain" }} />
+            <span style={{ color: g.rush ? "#ffe066" : BLUE.mid }}>
+              {g.rush ? "⚡ RUSH" : g.count === 1 ? "+1 crawler" : `+${g.count} crawlers`}
+            </span>
+            <img src={g.icon} alt={g.label} style={{ width: 22, height: 22, objectFit: "contain" }} />
           </button>
         ))}
       </div>
