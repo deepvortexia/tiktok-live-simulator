@@ -177,9 +177,10 @@ export default function LabyrinthLive() {
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
 
-  const [redScore,   setRedScore]   = useState(0);
-  const [blueScore,  setBlueScore]  = useState(0);
-  const [resetCount, setResetCount] = useState(0);
+  const [redScore,      setRedScore]      = useState(0);
+  const [blueScore,     setBlueScore]     = useState(0);
+  const [resetCount,    setResetCount]    = useState(0);
+  const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -254,10 +255,15 @@ export default function LabyrinthLive() {
             stepCreature(c, grid, cols, rows, pixels, depots, acc);
         }
 
-        // Flush scores ~2× per second
+        // Flush scores and creature counts ~2× per second
         if (frameRef.current % 30 === 0) {
           if (acc.red  > 0) { setRedScore(s  => s + acc.red);  acc.red  = 0; }
           if (acc.blue > 0) { setBlueScore(s => s + acc.blue); acc.blue = 0; }
+          const cs = creaturesRef.current;
+          setCreatureCounts({
+            red:  cs.filter(c => c.team === "red").length,
+            blue: cs.filter(c => c.team === "blue").length,
+          });
         }
 
         // Victory: all pixels deposited
@@ -425,8 +431,8 @@ export default function LabyrinthLive() {
       {/* Scoreboard */}
       <div style={{
         position: "absolute", top: 16, left: 0, right: 0,
-        display: "flex", justifyContent: "center", pointerEvents: "none",
-        zIndex: 10,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        gap: 6, pointerEvents: "none", zIndex: 10,
       }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 10,
@@ -447,6 +453,20 @@ export default function LabyrinthLive() {
           </span>
           <span>💙</span>
           <span style={{ color: BLUE.mid }}>BLUE</span>
+        </div>
+
+        {/* Creature count */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          background: "rgba(0,0,0,0.40)", backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: 16, padding: "3px 14px",
+          color: "#fff", fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
+          opacity: 0.85,
+        }}>
+          <span style={{ color: RED.mid }}>🔴 x{creatureCounts.red}</span>
+          <span style={{ opacity: 0.4 }}>vs</span>
+          <span style={{ color: BLUE.mid }}>x{creatureCounts.blue} 💙</span>
         </div>
       </div>
 
