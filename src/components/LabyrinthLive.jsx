@@ -212,7 +212,13 @@ export default function LabyrinthLive() {
     const midXMin = DEPOT_COLS + 2;
     const midXMax = cols - DEPOT_COLS - 2;
     const midPixels = placeOnPath(grid, rows, midXMin, midXMax, PIXELS_TOTAL);
-    pixelsRef.current = midPixels.map(({ x, y }) => ({ x, y, carrier: null, deposited: false }));
+    // First half red, second half blue — purely cosmetic
+    pixelsRef.current = midPixels.map(({ x, y }, i) => ({
+      x, y,
+      team: i < PIXELS_TOTAL / 2 ? "red" : "blue",
+      carrier: null,
+      deposited: false,
+    }));
 
     // 2 creatures per team
     const third = Math.max(3, Math.floor(cols / 3));
@@ -315,12 +321,14 @@ export default function LabyrinthLive() {
             (bd.xMax - bd.xMin + 1) * CELL - 1, (bd.yMax - bd.yMin + 1) * CELL - 1);
         }
 
-        // Loose pixels
-        ctx.shadowBlur  = 5;
-        ctx.shadowColor = "#ffffffaa";
-        ctx.fillStyle   = "#ffffff";
+        // Loose pixels — team-colored pulsing glow
         for (const p of pixels) {
           if (p.deposited || p.carrier) continue;
+          const pColors = p.team === "red" ? RED : BLUE;
+          const glow    = 15 + Math.sin(time * 0.005 + p.x * 0.31) * 5; // 15–20
+          ctx.shadowBlur  = glow;
+          ctx.shadowColor = pColors.hot;
+          ctx.fillStyle   = pColors.mid;
           ctx.beginPath();
           ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, 1.5, 0, Math.PI * 2);
           ctx.fill();
