@@ -163,7 +163,7 @@ function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   };
 }
 
-function stepCreature(c, grid, cols, rows, pixels, bases, scoreAcc, crystals, rushActive) {
+function stepCreature(c, grid, cols, rows, pixels, bases, onScore, crystals, rushActive) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
   c.moveTimer = rushActive ? Math.max(1, Math.floor(c.interval / 3)) : c.interval;
@@ -208,7 +208,7 @@ function stepCreature(c, grid, cols, rows, pixels, bases, scoreAcc, crystals, ru
     if (x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax) {
       if (crystals[c.team].length < CRYSTAL_MAX)
         crystals[c.team].push(1);
-      scoreAcc[c.team]++;
+      onScore(c.team, crystals[c.team].length);
 
       const midXMin = Math.floor(cols / 3);
       const midXMax = Math.floor(cols * 2 / 3);
@@ -258,7 +258,6 @@ export default function LabyrinthLive() {
   const crystalRef      = useRef({ red: [], blue: [] });
   const rafRef          = useRef(null);
   const frameRef        = useRef(0);
-  const scoreAccRef     = useRef({ red: 0, blue: 0 });
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
   const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
@@ -317,8 +316,7 @@ export default function LabyrinthLive() {
     rushRef.current = { red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } };
     setRedScore(0);
     setBlueScore(0);
-    scoreAccRef.current = { red: 0, blue: 0 };
-    frameRef.current    = 0;
+    frameRef.current = 0;
   }, [vp, resetCount]);
 
   useEffect(() => {
@@ -337,7 +335,6 @@ export default function LabyrinthLive() {
         const rows    = rowsRef.current;
         const pixels  = pixelsRef.current;
         const bases   = basesRef.current;
-        const acc     = scoreAccRef.current;
         const cel     = celebrationRef.current;
         const crystal = crystalRef.current;
         const rush    = rushRef.current;
@@ -349,8 +346,12 @@ export default function LabyrinthLive() {
             rush[team].active = false;
 
         if (!cel.active) {
+          const onScore = (team, len) => {
+            if (team === "red") setRedScore(len);
+            else setBlueScore(len);
+          };
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, bases, acc, crystal, rush[c.team].active);
+            stepCreature(c, grid, cols, rows, pixels, bases, onScore, crystal, rush[c.team].active);
         }
 
         if (frameRef.current % 10 === 0) {
@@ -361,8 +362,6 @@ export default function LabyrinthLive() {
         }
 
         if (frameRef.current % 30 === 0) {
-          if (acc.red  > 0) { setRedScore(s  => s + acc.red);  acc.red  = 0; }
-          if (acc.blue > 0) { setBlueScore(s => s + acc.blue); acc.blue = 0; }
           const cs = creaturesRef.current;
           setCreatureCounts({
             red:  cs.filter(c => c.team === "red").length,
@@ -374,9 +373,8 @@ export default function LabyrinthLive() {
         const redWon  = crystal.red.length  >= CRYSTAL_MAX;
         const blueWon = crystal.blue.length >= CRYSTAL_MAX;
         if (!cel.active && (redWon || blueWon)) {
-          setRedScore(s  => s + acc.red);
-          setBlueScore(s => s + acc.blue);
-          acc.red = acc.blue = 0;
+          setRedScore(crystal.red.length);
+          setBlueScore(crystal.blue.length);
           const winner = redWon ? "red" : "blue";
           const hw = canvas.width / 2, hh = canvas.height / 2;
           const particles = Array.from({ length: 120 }, () => {
