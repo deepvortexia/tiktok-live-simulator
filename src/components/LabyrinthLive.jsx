@@ -108,6 +108,7 @@ function makeCreature(x, y, team) {
     state: "SEEKING",  // SEEKING | CARRYING
     path: null,
     pixel: null,
+    trail: [],         // last 8 positions for trail rendering
     moveTimer: Math.floor(Math.random() * CREATURE_INTERVAL),
   };
 }
@@ -132,6 +133,10 @@ function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
     }
     if (!c.path || c.path.length === 0) return;
   }
+
+  // Record trail before moving
+  c.trail.push({ x: c.x, y: c.y });
+  if (c.trail.length > 8) c.trail.shift();
 
   // Move one step
   const { x, y } = c.path.shift();
@@ -327,6 +332,23 @@ export default function LabyrinthLive() {
           const colors     = c.team === "red" ? RED : BLUE;
           const cx         = c.x * CELL + CELL / 2;
           const cy         = c.y * CELL + CELL / 2;
+
+          // Trail: oldest index 0, newest index trail.length-1
+          for (let i = 0; i < c.trail.length; i++) {
+            const t      = c.trail[i];
+            const frac   = (i + 1) / c.trail.length;   // 0→1 old→new
+            const tr     = 0.4 + frac * 0.7;           // radius grows toward creature
+            ctx.save();
+            ctx.globalAlpha = frac * 0.45;
+            ctx.shadowBlur  = 3;
+            ctx.shadowColor = colors.hot;
+            ctx.fillStyle   = colors.mid;
+            ctx.beginPath();
+            ctx.arc(t.x * CELL + CELL / 2, t.y * CELL + CELL / 2, tr, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
           const dancing    = cel.active;
           const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
