@@ -4,7 +4,7 @@ const CELL             = 4;
 const PIXELS_TOTAL     = 30;
 const CRYSTAL_MAX      = 30;
 const BASE_FRAC        = 0.15;   // left/right 15% of cols = base zone
-const CREATURE_INTERVAL = 6;
+const CREATURE_INTERVAL = 4;
 const BLOCK_W          = 16;     // crystal block width in px
 const BLOCK_H          = 8;      // crystal block height in px
 const WALL = 0;
@@ -18,18 +18,18 @@ const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,1
 const CREATURE_COLOR = { red: "#ff0044", blue: "#00ccff" };
 
 const RED_GIFTS = [
-  { emoji: "🌹", label: "Rose",    cost:  1, count: 1, radius: 2, interval: 25 },
-  { emoji: "🔥", label: "Fire",    cost:  3, count: 1, radius: 3, interval: 12 },
-  { emoji: "👑", label: "Crown",   cost:  5, count: 2, radius: 4, interval:  6 },
-  { emoji: "💎", label: "Diamond", cost: 10, count: 3, radius: 5, interval: 18 },
-  { emoji: "🚀", label: "Rocket",  cost: 25, count: 2, radius: 3, interval: 12 },
+  { emoji: "🌹", label: "Rose",    cost:  1, count: 1, radius: 2, interval: 10 },
+  { emoji: "🔥", label: "Fire",    cost:  3, count: 1, radius: 3, interval:  6 },
+  { emoji: "👑", label: "Crown",   cost:  5, count: 2, radius: 4, interval:  4 },
+  { emoji: "💎", label: "Diamond", cost: 10, count: 3, radius: 5, interval:  8 },
+  { emoji: "🚀", label: "Rocket",  cost: 25, count: 2, radius: 3, interval:  5 },
 ];
 const BLUE_GIFTS = [
-  { emoji: "💧", label: "Drop",      cost:  1, count: 1, radius: 2, interval: 25 },
-  { emoji: "⚡", label: "Lightning", cost:  3, count: 1, radius: 3, interval: 12 },
-  { emoji: "🌊", label: "Wave",      cost:  5, count: 2, radius: 4, interval:  6 },
-  { emoji: "🔷", label: "Crystal",   cost: 10, count: 3, radius: 5, interval: 18 },
-  { emoji: "🌌", label: "Universe",  cost: 25, count: 2, radius: 3, interval: 12 },
+  { emoji: "💧", label: "Drop",      cost:  1, count: 1, radius: 2, interval: 10 },
+  { emoji: "⚡", label: "Lightning", cost:  3, count: 1, radius: 3, interval:  6 },
+  { emoji: "🌊", label: "Wave",      cost:  5, count: 2, radius: 4, interval:  4 },
+  { emoji: "🔷", label: "Crystal",   cost: 10, count: 3, radius: 5, interval:  8 },
+  { emoji: "🌌", label: "Universe",  cost: 25, count: 2, radius: 3, interval:  5 },
 ];
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
