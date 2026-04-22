@@ -161,10 +161,10 @@ function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   };
 }
 
-function stepCreature(c, grid, cols, rows, pixels, bases, scoreAcc, crystals) {
+function stepCreature(c, grid, cols, rows, pixels, bases, scoreAcc, crystals, rushActive) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
-  c.moveTimer = c.interval;
+  c.moveTimer = rushActive ? Math.max(1, Math.floor(c.interval / 3)) : c.interval;
 
   if (!c.path || c.path.length === 0) {
     if (c.state === "SEEKING") {
@@ -261,12 +261,14 @@ export default function LabyrinthLive() {
   const scoreAccRef     = useRef({ red: 0, blue: 0 });
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
+  const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
 
   const [redScore,       setRedScore]       = useState(0);
   const [blueScore,      setBlueScore]      = useState(0);
   const [resetCount,     setResetCount]     = useState(0);
   const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
   const [comments,       setComments]       = useState(() => [randomComment(), randomComment(), randomComment()]);
+  const [rushDisplay,    setRushDisplay]    = useState({ red: 0, blue: 0 });
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -315,6 +317,7 @@ export default function LabyrinthLive() {
     crystalRef.current   = { red: [], blue: [] };
     celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
     pendingResetRef.current = false;
+    rushRef.current = { red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } };
     setRedScore(0);
     setBlueScore(0);
     scoreAccRef.current = { red: 0, blue: 0 };
@@ -340,12 +343,24 @@ export default function LabyrinthLive() {
         const acc     = scoreAccRef.current;
         const cel     = celebrationRef.current;
         const crystal = crystalRef.current;
+        const rush    = rushRef.current;
 
         frameRef.current++;
 
+        for (const team of ["red", "blue"])
+          if (rush[team].active && frameRef.current >= rush[team].endFrame)
+            rush[team].active = false;
+
         if (!cel.active) {
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, bases, acc, crystal);
+            stepCreature(c, grid, cols, rows, pixels, bases, acc, crystal, rush[c.team].active);
+        }
+
+        if (frameRef.current % 5 === 0) {
+          setRushDisplay({
+            red:  rush.red.active  ? Math.max(0, rush.red.endFrame  - frameRef.current) : 0,
+            blue: rush.blue.active ? Math.max(0, rush.blue.endFrame - frameRef.current) : 0,
+          });
         }
 
         if (frameRef.current % 30 === 0) {
@@ -434,6 +449,7 @@ export default function LabyrinthLive() {
           const cx         = c.x * CELL + CELL / 2;
           const cy         = c.y * CELL + CELL / 2;
           const dancing    = cel.active;
+          const isRushing  = rush[c.team].active;
           const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
           for (let i = 0; i < c.trail.length; i++) {
@@ -441,8 +457,8 @@ export default function LabyrinthLive() {
             const frac = (i + 1) / c.trail.length;
             ctx.save();
             ctx.globalAlpha = frac * 0.6;
-            ctx.shadowBlur  = 6;
-            ctx.shadowColor = bodyColor;
+            ctx.shadowBlur  = isRushing ? 15 : 6;
+            ctx.shadowColor = isRushing ? "#ffffff" : bodyColor;
             ctx.fillStyle   = bodyColor;
             ctx.beginPath();
             ctx.arc(t.x * CELL + CELL / 2, t.y * CELL + CELL / 2, 2.5 * frac, 0, Math.PI * 2);
@@ -450,10 +466,10 @@ export default function LabyrinthLive() {
             ctx.restore();
           }
 
-          const r         = c.radius * danceScale;
+          const r         = (c.radius + (isRushing ? 1 : 0)) * danceScale;
           const glowPulse = 20 + Math.sin(time * 0.005 + cx) * 10;
-          ctx.shadowBlur  = glowPulse * (dancing ? 2 : 1);
-          ctx.shadowColor = bodyColor;
+          ctx.shadowBlur  = isRushing ? 30 : glowPulse * (dancing ? 2 : 1);
+          ctx.shadowColor = isRushing ? "#ffffff" : bodyColor;
           const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
           grad.addColorStop(0,   "#ffffff");
           grad.addColorStop(0.5, bodyColor);
@@ -535,6 +551,11 @@ export default function LabyrinthLive() {
       creaturesRef.current.push(makeCreature(x, y, team, radius, interval));
   };
 
+  const activateRush = (team) => {
+    rushRef.current[team].active   = true;
+    rushRef.current[team].endFrame = frameRef.current + 900;
+  };
+
   const pad2 = n => String(n).padStart(2, "0");
 
   return (
@@ -590,6 +611,34 @@ export default function LabyrinthLive() {
           <span style={{ opacity: 0.4 }}>vs</span>
           <span style={{ color: BLUE.mid }}>x{creatureCounts.blue} 💙</span>
         </div>
+
+        {/* Rush timer bars */}
+        {(rushDisplay.red > 0 || rushDisplay.blue > 0) && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 3, width: 200 }}>
+            {rushDisplay.red > 0 && (
+              <div style={{ height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 2,
+                  width: `${(rushDisplay.red / 900) * 100}%`,
+                  background: RED.hot,
+                  boxShadow: `0 0 6px ${RED.hot}`,
+                  transition: "width 0.1s linear",
+                }} />
+              </div>
+            )}
+            {rushDisplay.blue > 0 && (
+              <div style={{ height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 2,
+                  width: `${(rushDisplay.blue / 900) * 100}%`,
+                  background: BLUE.hot,
+                  boxShadow: `0 0 6px ${BLUE.hot}`,
+                  transition: "width 0.1s linear",
+                }} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* TikTok comment feed — bottom-left */}
@@ -626,7 +675,7 @@ export default function LabyrinthLive() {
         {RED_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => spawnForTeam("red", g.radius, g.interval, g.count)}
+            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.label === "Rocket") activateRush("red"); }}
             style={{
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,45,85,0.25)",
@@ -655,7 +704,7 @@ export default function LabyrinthLive() {
         {BLUE_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => spawnForTeam("blue", g.radius, g.interval, g.count)}
+            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.label === "Universe") activateRush("blue"); }}
             style={{
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(56,189,248,0.25)",
