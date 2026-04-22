@@ -305,6 +305,14 @@ export default function LabyrinthLive() {
         // Depot overlays
         if (depots.red && depots.blue) {
           const rd = depots.red, bd = depots.blue;
+
+          // Check if a carrying creature of each team is within 20 path-steps of its depot
+          const nearDepot = { red: false, blue: false };
+          for (const c of creaturesRef.current) {
+            if (c.state === "CARRYING" && c.path && c.path.length <= 20)
+              nearDepot[c.team] = true;
+          }
+
           ctx.save();
           ctx.globalAlpha = 0.12;
           ctx.fillStyle = RED.hot;
@@ -312,13 +320,26 @@ export default function LabyrinthLive() {
           ctx.fillStyle = BLUE.hot;
           ctx.fillRect(bd.xMin * CELL, bd.yMin * CELL, (bd.xMax - bd.xMin + 1) * CELL, (bd.yMax - bd.yMin + 1) * CELL);
           ctx.restore();
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = RED.mid;
+
+          const depotBorderW = (active) => active ? 2 : 1;
+          const depotGlow    = (active) => active ? (8 + Math.sin(time * 0.02) * 4) : 0;
+
+          ctx.shadowBlur  = depotGlow(nearDepot.red);
+          ctx.shadowColor = RED.hot;
+          ctx.lineWidth   = depotBorderW(nearDepot.red);
+          ctx.strokeStyle = nearDepot.red ? RED.hot : RED.mid;
           ctx.strokeRect(rd.xMin * CELL + 0.5, rd.yMin * CELL + 0.5,
             (rd.xMax - rd.xMin + 1) * CELL - 1, (rd.yMax - rd.yMin + 1) * CELL - 1);
-          ctx.strokeStyle = BLUE.mid;
+
+          ctx.shadowBlur  = depotGlow(nearDepot.blue);
+          ctx.shadowColor = BLUE.hot;
+          ctx.lineWidth   = depotBorderW(nearDepot.blue);
+          ctx.strokeStyle = nearDepot.blue ? BLUE.hot : BLUE.mid;
           ctx.strokeRect(bd.xMin * CELL + 0.5, bd.yMin * CELL + 0.5,
             (bd.xMax - bd.xMin + 1) * CELL - 1, (bd.yMax - bd.yMin + 1) * CELL - 1);
+
+          ctx.shadowBlur = 0;
+          ctx.lineWidth  = 1;
         }
 
         // Loose pixels — team-colored pulsing glow
