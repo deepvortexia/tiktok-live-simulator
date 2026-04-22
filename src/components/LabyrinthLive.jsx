@@ -13,6 +13,33 @@ const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,1
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
 
+// ── TikTok comment feed ────────────────────────────────────────────────────
+const VIEWER_NAMES = [
+  "deepvortexia", "tiktok_fan99", "gamer_x42", "liveviewer_", "coolguy88",
+  "pixel_queen", "maze_hunter", "user_3847", "nightowl22", "streamer_pro",
+  "viewerXL", "luckystar_", "techguru01", "vibecheck99", "shadow_wolf",
+  "neon_rider", "cosmic_dust", "fire_storm7", "ice_queen_", "blaze_runner",
+];
+const COMMENT_TEMPLATES = [
+  n => `${n} joined`,
+  n => `${n} followed`,
+  n => `${n} gifted 🌹`,
+  n => `${n} gifted 🦁`,
+  n => `${n} sent 🚀`,
+  n => `${n} gifted 🌌`,
+  n => `${n} ❤️ liked`,
+  n => `${n} shared the stream`,
+  n => `${n} gifted 🌹🌹🌹`,
+  n => `${n} is now a top fan!`,
+];
+let _commentId = 0;
+function randomComment() {
+  const name = VIEWER_NAMES[Math.floor(Math.random() * VIEWER_NAMES.length)];
+  const tmpl = COMMENT_TEMPLATES[Math.floor(Math.random() * COMMENT_TEMPLATES.length)];
+  return { id: ++_commentId, text: tmpl(name) };
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 function generateMaze(cols, rows) {
   const grid = Array.from({ length: rows }, () => new Uint8Array(cols).fill(WALL));
   grid[1][1] = PATH;
@@ -177,16 +204,25 @@ export default function LabyrinthLive() {
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
 
-  const [redScore,      setRedScore]      = useState(0);
-  const [blueScore,     setBlueScore]     = useState(0);
-  const [resetCount,    setResetCount]    = useState(0);
+  const [redScore,       setRedScore]       = useState(0);
+  const [blueScore,      setBlueScore]      = useState(0);
+  const [resetCount,     setResetCount]     = useState(0);
   const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
+  const [comments,       setComments]       = useState(() => [randomComment(), randomComment(), randomComment()]);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
     const onResize = () => setVp({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // New TikTok comment every 3 s, keep last 5
+  useEffect(() => {
+    const id = setInterval(() => {
+      setComments(prev => [...prev, randomComment()].slice(-5));
+    }, 3000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -468,6 +504,32 @@ export default function LabyrinthLive() {
           <span style={{ opacity: 0.4 }}>vs</span>
           <span style={{ color: BLUE.mid }}>x{creatureCounts.blue} 💙</span>
         </div>
+      </div>
+
+      {/* TikTok comment feed — bottom-left */}
+      <div style={{
+        position: "absolute", bottom: 20, left: 16,
+        display: "flex", flexDirection: "column", gap: 4,
+        maxWidth: 280, pointerEvents: "none", zIndex: 10,
+      }}>
+        {comments.map((c, i) => (
+          <div key={c.id} style={{
+            color: "#fff",
+            fontSize: 11,
+            fontFamily: "'Courier New', monospace",
+            background: "rgba(0,0,0,0.38)",
+            backdropFilter: "blur(6px)",
+            padding: "2px 10px",
+            borderRadius: 10,
+            opacity: 0.3 + (i / Math.max(comments.length - 1, 1)) * 0.7,
+            transition: "opacity 0.4s",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}>
+            {c.text}
+          </div>
+        ))}
       </div>
 
       <style>{`
