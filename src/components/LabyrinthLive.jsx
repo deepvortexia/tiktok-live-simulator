@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 const CELL             = 4;
 const PIXELS_TOTAL     = 30;
-const CRYSTAL_MAX      = 30;
-const BASE_FRAC        = 0.15;   // left/right 15% of cols = base zone
+const SCORE_WIN        = 30;
+const BASE_FRAC        = 0.15;
 const CREATURE_INTERVAL = 4;
-const BLOCK_W          = 16;     // crystal block width in px
-const BLOCK_H          = 8;      // crystal block height in px
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 const MAX_CREATURES = 12;
+const TAIL_RENDER_MAX = 40;
 
 const RED  = { hot: "#ff2d55", mid: "#ff6b9d", deep: "#c21858", glow: "rgba(255,45,85,0.4)" };
 const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,189,248,0.4)" };
@@ -116,7 +115,6 @@ function buildMazeCanvas(grid, cols, rows) {
   return off;
 }
 
-// BFS from (sx, sy); returns array of {x,y} steps to nearest target, or null.
 function bfsPath(grid, cols, rows, sx, sy, isTarget) {
   if (isTarget(sx, sy)) return [];
   const startKey = sy * cols + sx;
@@ -152,98 +150,55 @@ function bfsPath(grid, cols, rows, sx, sy, isTarget) {
 function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   return {
     x, y, team,
-    state: "SEEKING",
     path: null,
     pathRetryIn: 0,
-    pixel: null,
-    trail: [],
+    tail: [],
+    tailMax: 0,
     radius,
     interval,
     moveTimer: Math.floor(Math.random() * interval),
   };
 }
 
-function stepCreature(c, grid, cols, rows, pixels, bases, onScore, crystals, rushActive) {
+function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
   c.moveTimer = rushActive ? Math.max(1, Math.floor(c.interval / 3)) : c.interval;
 
-  // Only BFS when path is exhausted or a state-change nulled it; back off after failure
   if (!c.path || c.path.length === 0) {
     if (c.pathRetryIn > 0) { c.pathRetryIn--; return; }
-    if (c.state === "SEEKING") {
-      const pixelKeys = new Set();
-      for (const p of pixels)
-        if (!p.carrier) pixelKeys.add(p.y * cols + p.x);
-      if (pixelKeys.size === 0) return;
-      c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeys.has(y * cols + x));
-    } else {
-      const b = bases[c.team];
-      c.path = bfsPath(grid, cols, rows, c.x, c.y,
-        (x, y) => x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax);
-    }
+    const pixelKeys = new Set();
+    for (const p of pixels)
+      if (!p.carrier) pixelKeys.add(p.y * cols + p.x);
+    if (pixelKeys.size === 0) return;
+    c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeys.has(y * cols + x));
     if (!c.path || c.path.length === 0) { c.pathRetryIn = 20; return; }
   }
 
-  // Record trail before moving
-  c.trail.push({ x: c.x, y: c.y });
-  if (c.trail.length > 5) c.trail.shift();
+  // Append current position to tail before moving, trim to tailMax
+  if (c.tailMax > 0) {
+    c.tail.push({ x: c.x, y: c.y });
+    if (c.tail.length > c.tailMax) c.tail.shift();
+  }
 
   const { x, y } = c.path.shift();
   c.x = x;
   c.y = y;
 
-  if (c.state === "SEEKING") {
-    for (const p of pixels) {
-      if (!p.carrier && p.x === x && p.y === y) {
-        p.carrier = c;
-        c.pixel   = p;
-        c.state   = "CARRYING";
-        c.path    = null;
-        break;
-      }
-    }
-  } else if (c.state === "CARRYING" && c.pixel) {
-    const b = bases[c.team];
-    if (x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax) {
-      if (crystals[c.team].length < CRYSTAL_MAX)
-        crystals[c.team].push(1);
-      onScore(c.team, crystals[c.team].length);
-
+  // Check pixel pickup
+  for (const p of pixels) {
+    if (!p.carrier && p.x === x && p.y === y) {
+      c.tailMax += 4;
+      // Respawn pixel to center zone immediately
       const midXMin = Math.floor(cols / 3);
       const midXMax = Math.floor(cols * 2 / 3);
       const newSpot = placeOnPath(grid, rows, midXMin, midXMax, 1)[0];
-      if (newSpot) {
-        c.pixel.x       = newSpot.x;
-        c.pixel.y       = newSpot.y;
-        c.pixel.carrier = null;
-      } else {
-        c.pixel.carrier = null;
-      }
-      c.pixel = null;
-      c.state = "SEEKING";
-      c.path  = null;
+      if (newSpot) { p.x = newSpot.x; p.y = newSpot.y; }
+      onScore(c.team);
+      c.path = null;
+      break;
     }
   }
-}
-
-function drawCrystal(ctx, blocks, centerX, canvasH, colors, time) {
-  const bright = blocks.length >= CRYSTAL_MAX / 2;
-  for (let i = 0; i < blocks.length; i++) {
-    const bx = centerX - BLOCK_W / 2;
-    const by = canvasH - (i + 1) * BLOCK_H;
-    const shimmer = bright ? 0.85 + Math.sin(time * 0.006 + i * 0.4) * 0.15 : 0.7;
-    ctx.shadowBlur  = bright ? 12 : 5;
-    ctx.shadowColor = colors.hot;
-    ctx.globalAlpha = shimmer;
-    ctx.fillStyle   = bright ? colors.hot : colors.mid;
-    ctx.fillRect(bx, by, BLOCK_W, BLOCK_H - 1);
-    ctx.globalAlpha = shimmer * 0.6;
-    ctx.fillStyle   = "#ffffff";
-    ctx.fillRect(bx, by, BLOCK_W, 1);
-  }
-  ctx.globalAlpha = 1;
-  ctx.shadowBlur  = 0;
 }
 
 export default function LabyrinthLive() {
@@ -255,9 +210,9 @@ export default function LabyrinthLive() {
   const creaturesRef    = useRef([]);
   const pixelsRef       = useRef([]);
   const basesRef        = useRef({ red: null, blue: null });
-  const crystalRef      = useRef({ red: [], blue: [] });
   const rafRef          = useRef(null);
   const frameRef        = useRef(0);
+  const scoreTotalsRef  = useRef({ red: 0, blue: 0 });
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
   const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
@@ -310,7 +265,7 @@ export default function LabyrinthLive() {
       ...blueSpots.map(({ x, y }) => makeCreature(x, y, "blue")),
     ];
 
-    crystalRef.current      = { red: [], blue: [] };
+    scoreTotalsRef.current  = { red: 0, blue: 0 };
     celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
     pendingResetRef.current = false;
     rushRef.current = { red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } };
@@ -331,13 +286,12 @@ export default function LabyrinthLive() {
       }
 
       if (canvas && maze && grid) {
-        const cols    = colsRef.current;
-        const rows    = rowsRef.current;
-        const pixels  = pixelsRef.current;
-        const bases   = basesRef.current;
-        const cel     = celebrationRef.current;
-        const crystal = crystalRef.current;
-        const rush    = rushRef.current;
+        const cols   = colsRef.current;
+        const rows   = rowsRef.current;
+        const pixels = pixelsRef.current;
+        const bases  = basesRef.current;
+        const cel    = celebrationRef.current;
+        const rush   = rushRef.current;
 
         frameRef.current++;
 
@@ -346,12 +300,16 @@ export default function LabyrinthLive() {
             rush[team].active = false;
 
         if (!cel.active) {
-          const onScore = (team, len) => {
-            if (team === "red") setRedScore(len);
-            else setBlueScore(len);
+          const onScore = (team) => {
+            const total = creaturesRef.current
+              .filter(c => c.team === team)
+              .reduce((s, c) => s + Math.floor(c.tailMax / 4), 0);
+            scoreTotalsRef.current[team] = total;
+            if (team === "red") setRedScore(total);
+            else setBlueScore(total);
           };
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, bases, onScore, crystal, rush[c.team].active);
+            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active);
         }
 
         if (frameRef.current % 10 === 0) {
@@ -369,13 +327,10 @@ export default function LabyrinthLive() {
           });
         }
 
-        // Victory: crystal reaches CRYSTAL_MAX blocks
-        const redWon  = crystal.red.length  >= CRYSTAL_MAX;
-        const blueWon = crystal.blue.length >= CRYSTAL_MAX;
-        if (!cel.active && (redWon || blueWon)) {
-          setRedScore(crystal.red.length);
-          setBlueScore(crystal.blue.length);
-          const winner = redWon ? "red" : "blue";
+        // Victory: first team to score SCORE_WIN
+        const sc = scoreTotalsRef.current;
+        if (!cel.active && (sc.red >= SCORE_WIN || sc.blue >= SCORE_WIN)) {
+          const winner = sc.red >= SCORE_WIN ? "red" : "blue";
           const hw = canvas.width / 2, hh = canvas.height / 2;
           const particles = Array.from({ length: 120 }, () => {
             const angle = Math.random() * Math.PI * 2;
@@ -424,14 +379,7 @@ export default function LabyrinthLive() {
         }
         ctx.shadowBlur = 0;
 
-        // ── Crystals ───────────────────────────────────────────────────────
-        if (bases.red && bases.blue) {
-          const basePxW   = Math.floor(cols * BASE_FRAC) * CELL;
-          drawCrystal(ctx, crystal.red,  basePxW / 2,               canvas.height, RED,  time);
-          drawCrystal(ctx, crystal.blue, canvas.width - basePxW / 2, canvas.height, BLUE, time);
-        }
-
-        // ── Creatures — trails then body ───────────────────────────────────
+        // ── Creatures — snake tail then body ──────────────────────────────
         for (const c of creaturesRef.current) {
           const bodyColor  = CREATURE_COLOR[c.team];
           const cx         = c.x * CELL + CELL / 2;
@@ -440,19 +388,23 @@ export default function LabyrinthLive() {
           const isRushing  = rush[c.team].active;
           const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
-          // Trails
-          ctx.shadowBlur  = isRushing ? 12 : 6;
-          ctx.shadowColor = isRushing ? "#ffffff" : bodyColor;
-          ctx.fillStyle   = bodyColor;
-          for (let i = 0; i < c.trail.length; i++) {
-            const t    = c.trail[i];
-            const frac = (i + 1) / c.trail.length;
-            ctx.globalAlpha = frac * 0.6;
-            ctx.beginPath();
-            ctx.arc(t.x * CELL + CELL / 2, t.y * CELL + CELL / 2, 2.5 * frac, 0, Math.PI * 2);
-            ctx.fill();
+          // Snake tail — render up to TAIL_RENDER_MAX dots, oldest first = most faded
+          const tailStart = Math.max(0, c.tail.length - TAIL_RENDER_MAX);
+          const visLen    = c.tail.length - tailStart;
+          if (visLen > 0) {
+            ctx.shadowBlur  = isRushing ? 12 : 6;
+            ctx.shadowColor = isRushing ? "#ffffff" : bodyColor;
+            ctx.fillStyle   = bodyColor;
+            for (let i = tailStart; i < c.tail.length; i++) {
+              const t    = c.tail[i];
+              const frac = (i - tailStart + 1) / visLen;
+              ctx.globalAlpha = frac * 0.65;
+              ctx.beginPath();
+              ctx.arc(t.x * CELL + CELL / 2, t.y * CELL + CELL / 2, 2.5 * frac, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.globalAlpha = 1;
           }
-          ctx.globalAlpha = 1;
 
           // Body
           const r         = (c.radius + (isRushing ? 1 : 0)) * danceScale;
@@ -533,9 +485,9 @@ export default function LabyrinthLive() {
     const bases = basesRef.current;
     if (!grid || !bases[team]) return;
     if (creaturesRef.current.length >= MAX_CREATURES) return;
-    const b = bases[team];
+    const b       = bases[team];
     const allowed = MAX_CREATURES - creaturesRef.current.length;
-    const spots = placeOnPath(grid, rows, b.xMin, b.xMax + 1, Math.min(count, allowed));
+    const spots   = placeOnPath(grid, rows, b.xMin, b.xMax + 1, Math.min(count, allowed));
     for (const { x, y } of spots)
       creaturesRef.current.push(makeCreature(x, y, team, radius, interval));
   };
