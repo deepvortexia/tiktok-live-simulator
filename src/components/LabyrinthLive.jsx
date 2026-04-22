@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const CELL = 4;
 const GRAINS_PER_TEAM = 50;
+const PIXELS_TOTAL = 20;
+const DEPOT_COLS = 4;
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -149,6 +151,8 @@ export default function LabyrinthLive() {
   const colsRef     = useRef(0);
   const rowsRef     = useRef(0);
   const creaturesRef = useRef([]);
+  const pixelsRef   = useRef([]);   // loose collectible pixels in the maze
+  const depotsRef   = useRef({ red: null, blue: null });
   const rafRef      = useRef(null);
   const frameRef    = useRef(0);
   const scoreAccRef = useRef({ red: 0, blue: 0 });
@@ -184,6 +188,26 @@ export default function LabyrinthLive() {
       ...redSpots.map(({ x, y }) => makeCreature(x, y, "red",  "rosier")),
       ...blueSpots.map(({ x, y }) => makeCreature(x, y, "blue", "rosier")),
     ];
+
+    // Depot zones (exclusive of boundary walls)
+    const redDepot  = { xMin: 1,               xMax: DEPOT_COLS,           yMin: 1, yMax: rows - 2 };
+    const blueDepot = { xMin: cols - DEPOT_COLS - 1, xMax: cols - 2,       yMin: 1, yMax: rows - 2 };
+    depotsRef.current = { red: redDepot, blue: blueDepot };
+
+    // Scatter pixels in the middle corridor, away from both depots
+    const midXMin = DEPOT_COLS + 2;
+    const midXMax = cols - DEPOT_COLS - 2;
+    const cands = [];
+    for (let y = 1; y < rows - 1; y++)
+      for (let x = midXMin; x < midXMax; x++)
+        if (grid[y][x] === PATH) cands.push({ x, y });
+    for (let i = cands.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cands[i], cands[j]] = [cands[j], cands[i]];
+    }
+    pixelsRef.current = cands.slice(0, PIXELS_TOTAL).map(({ x, y }) => ({
+      x, y, carrier: null, deposited: false,
+    }));
 
     setRedScore(0);
     setBlueScore(0);
@@ -221,6 +245,39 @@ export default function LabyrinthLive() {
         ctx.fillStyle = "#050510";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(maze, 0, 0);
+
+        // Draw depot zones
+        const depots = depotsRef.current;
+        if (depots.red && depots.blue) {
+          const rd = depots.red;
+          const bd = depots.blue;
+          ctx.save();
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = RED.hot;
+          ctx.fillRect(rd.xMin * CELL, rd.yMin * CELL, (rd.xMax - rd.xMin + 1) * CELL, (rd.yMax - rd.yMin + 1) * CELL);
+          ctx.fillStyle = BLUE.hot;
+          ctx.fillRect(bd.xMin * CELL, bd.yMin * CELL, (bd.xMax - bd.xMin + 1) * CELL, (bd.yMax - bd.yMin + 1) * CELL);
+          ctx.restore();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = RED.mid;
+          ctx.strokeRect(rd.xMin * CELL + 0.5, rd.yMin * CELL + 0.5, (rd.xMax - rd.xMin + 1) * CELL - 1, (rd.yMax - rd.yMin + 1) * CELL - 1);
+          ctx.strokeStyle = BLUE.mid;
+          ctx.strokeRect(bd.xMin * CELL + 0.5, bd.yMin * CELL + 0.5, (bd.xMax - bd.xMin + 1) * CELL - 1, (bd.yMax - bd.yMin + 1) * CELL - 1);
+        }
+
+        // Draw loose pixels
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = "#ffffffaa";
+        ctx.fillStyle = "#ffffff";
+        for (const p of pixelsRef.current) {
+          if (p.deposited || p.carrier) continue;
+          const px = p.x * CELL + CELL / 2;
+          const py = p.y * CELL + CELL / 2;
+          ctx.beginPath();
+          ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
 
         for (const c of creaturesRef.current) {
           const colors = c.team === "red" ? RED : BLUE;
