@@ -163,20 +163,23 @@ function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
 }
 
 export default function LabyrinthLive() {
-  const canvasRef    = useRef(null);
-  const mazeLayerRef = useRef(null);
-  const gridRef      = useRef(null);
-  const colsRef      = useRef(0);
-  const rowsRef      = useRef(0);
-  const creaturesRef = useRef([]);
-  const pixelsRef    = useRef([]);
-  const depotsRef    = useRef({ red: null, blue: null });
-  const rafRef       = useRef(null);
-  const frameRef     = useRef(0);
-  const scoreAccRef  = useRef({ red: 0, blue: 0 });
+  const canvasRef       = useRef(null);
+  const mazeLayerRef    = useRef(null);
+  const gridRef         = useRef(null);
+  const colsRef         = useRef(0);
+  const rowsRef         = useRef(0);
+  const creaturesRef    = useRef([]);
+  const pixelsRef       = useRef([]);
+  const depotsRef       = useRef({ red: null, blue: null });
+  const rafRef          = useRef(null);
+  const frameRef        = useRef(0);
+  const scoreAccRef     = useRef({ red: 0, blue: 0 });
+  const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
+  const pendingResetRef = useRef(false);
 
-  const [redScore,  setRedScore]  = useState(0);
-  const [blueScore, setBlueScore] = useState(0);
+  const [redScore,   setRedScore]   = useState(0);
+  const [blueScore,  setBlueScore]  = useState(0);
+  const [resetCount, setResetCount] = useState(0);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -215,11 +218,13 @@ export default function LabyrinthLive() {
       ...blueSpots.map(({ x, y }) => makeCreature(x, y, "blue")),
     ];
 
+    celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
+    pendingResetRef.current = false;
     setRedScore(0);
     setBlueScore(0);
     scoreAccRef.current = { red: 0, blue: 0 };
     frameRef.current    = 0;
-  }, [vp]);
+  }, [vp, resetCount]);
 
   useEffect(() => {
     const render = (time) => {
@@ -227,23 +232,56 @@ export default function LabyrinthLive() {
       const maze   = mazeLayerRef.current;
       const grid   = gridRef.current;
 
+      // Trigger reset from previous celebration
+      if (pendingResetRef.current) {
+        pendingResetRef.current = false;
+        setResetCount(n => n + 1);
+      }
+
       if (canvas && maze && grid) {
         const cols    = colsRef.current;
         const rows    = rowsRef.current;
         const pixels  = pixelsRef.current;
         const depots  = depotsRef.current;
         const acc     = scoreAccRef.current;
+        const cel     = celebrationRef.current;
 
         frameRef.current++;
 
-        // Step all creatures
-        for (const c of creaturesRef.current)
-          stepCreature(c, grid, cols, rows, pixels, depots, acc);
+        // Step creatures only when not celebrating
+        if (!cel.active) {
+          for (const c of creaturesRef.current)
+            stepCreature(c, grid, cols, rows, pixels, depots, acc);
+        }
 
-        // Flush scores to state ~2× per second
+        // Flush scores ~2× per second
         if (frameRef.current % 30 === 0) {
           if (acc.red  > 0) { setRedScore(s  => s + acc.red);  acc.red  = 0; }
           if (acc.blue > 0) { setBlueScore(s => s + acc.blue); acc.blue = 0; }
+        }
+
+        // Victory: all pixels deposited
+        if (!cel.active && pixels.length > 0 && pixels.every(p => p.deposited)) {
+          // Flush final scores immediately
+          setRedScore(s  => s + acc.red);
+          setBlueScore(s => s + acc.blue);
+          const winner = (acc.red >= acc.blue) ? "red" : "blue";
+          acc.red = acc.blue = 0;
+          const hw = canvas.width / 2, hh = canvas.height / 2;
+          const particles = Array.from({ length: 120 }, () => {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 7 + 2;
+            return {
+              x: hw + (Math.random() - 0.5) * 80,
+              y: hh + (Math.random() - 0.5) * 80,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              life: Math.floor(Math.random() * 80 + 60),
+              maxLife: 140,
+              size: Math.random() * 3 + 1,
+            };
+          });
+          celebrationRef.current = { active: true, winner, endFrame: frameRef.current + 180, particles };
         }
 
         const ctx   = canvas.getContext("2d");
@@ -284,24 +322,26 @@ export default function LabyrinthLive() {
         }
         ctx.shadowBlur = 0;
 
-        // Creatures
+        // Creatures (with dance effect during celebration)
         for (const c of creaturesRef.current) {
-          const colors = c.team === "red" ? RED : BLUE;
-          const cx     = c.x * CELL + CELL / 2;
-          const cy     = c.y * CELL + CELL / 2;
+          const colors     = c.team === "red" ? RED : BLUE;
+          const cx         = c.x * CELL + CELL / 2;
+          const cy         = c.y * CELL + CELL / 2;
+          const dancing    = cel.active;
+          const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
-          ctx.shadowBlur  = 10 * pulse;
+          ctx.shadowBlur  = 10 * pulse * (dancing ? 2.5 : 1);
           ctx.shadowColor = colors.hot;
-          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 3);
+          const r = 1.5 * danceScale;
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2);
           grad.addColorStop(0,   "#ffffff");
           grad.addColorStop(0.4, colors.mid);
           grad.addColorStop(1,   colors.deep);
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
           ctx.fill();
 
-          // White dot on top when carrying a pixel
           if (c.state === "CARRYING") {
             ctx.shadowBlur  = 6;
             ctx.shadowColor = "#ffffff";
@@ -310,6 +350,51 @@ export default function LabyrinthLive() {
             ctx.arc(cx, cy, 1, 0, Math.PI * 2);
             ctx.fill();
           }
+        }
+
+        // Celebration overlay
+        if (cel.active) {
+          const winColors  = cel.winner === "red" ? RED : BLUE;
+          const flashAlpha = (0.1 + Math.sin(time * 0.015) * 0.08);
+          ctx.save();
+          ctx.globalAlpha = flashAlpha;
+          ctx.fillStyle   = winColors.hot;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.restore();
+
+          // Particles
+          for (const p of cel.particles) {
+            if (p.life <= 0) continue;
+            p.x  += p.vx;
+            p.y  += p.vy;
+            p.vy += 0.12;
+            p.vx *= 0.99;
+            p.life--;
+            ctx.save();
+            ctx.globalAlpha = p.life / p.maxLife;
+            ctx.shadowBlur  = 8;
+            ctx.shadowColor = winColors.hot;
+            ctx.fillStyle   = winColors.mid;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // Winner text
+          const fontSize = Math.min(canvas.width / 8, 64) *
+            (1 + Math.sin(time * 0.008) * 0.06);
+          ctx.save();
+          ctx.shadowBlur    = 30;
+          ctx.shadowColor   = winColors.hot;
+          ctx.fillStyle     = "#ffffff";
+          ctx.font          = `bold ${fontSize}px 'Courier New', monospace`;
+          ctx.textAlign     = "center";
+          ctx.textBaseline  = "middle";
+          ctx.fillText(`${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height / 2);
+          ctx.restore();
+
+          if (frameRef.current >= cel.endFrame) pendingResetRef.current = true;
         }
 
         ctx.shadowBlur = 0;
