@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 
-const CELL           = 4;
-const PIXELS_TOTAL   = 20;
-const DEPOT_COLS     = 4;
-const CREATURE_INTERVAL = 6;  // frames between steps
+const CELL             = 4;
+const PIXELS_TOTAL     = 30;
+const CRYSTAL_MAX      = 30;
+const BASE_FRAC        = 0.15;   // left/right 15% of cols = base zone
+const CREATURE_INTERVAL = 6;
+const BLOCK_W          = 16;     // crystal block width in px
+const BLOCK_H          = 8;      // crystal block height in px
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
 const RED  = { hot: "#ff2d55", mid: "#ff6b9d", deep: "#c21858", glow: "rgba(255,45,85,0.4)" };
 const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,189,248,0.4)" };
+
+const CREATURE_COLOR = { red: "#ff0044", blue: "#00ccff" };
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
 
@@ -101,7 +106,6 @@ function bfsPath(grid, cols, rows, sx, sy, isTarget) {
   const startKey = sy * cols + sx;
   const parent   = new Map([[startKey, -1]]);
   const queue    = [startKey];
-
   while (queue.length) {
     const curKey = queue.shift();
     const cx = curKey % cols;
@@ -132,43 +136,45 @@ function bfsPath(grid, cols, rows, sx, sy, isTarget) {
 function makeCreature(x, y, team) {
   return {
     x, y, team,
-    state: "SEEKING",  // SEEKING | CARRYING
+    state: "SEEKING",
     path: null,
     pixel: null,
+    trail: [],
     moveTimer: Math.floor(Math.random() * CREATURE_INTERVAL),
   };
 }
 
-function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
+function stepCreature(c, grid, cols, rows, pixels, bases, scoreAcc, crystals) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
   c.moveTimer = CREATURE_INTERVAL;
 
-  // Recalculate path when empty
   if (!c.path || c.path.length === 0) {
     if (c.state === "SEEKING") {
       const pixelKeys = new Set();
       for (const p of pixels)
-        if (!p.deposited && !p.carrier) pixelKeys.add(p.y * cols + p.x);
+        if (!p.carrier) pixelKeys.add(p.y * cols + p.x);
       if (pixelKeys.size === 0) return;
       c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeys.has(y * cols + x));
     } else {
-      const d = depots[c.team];
+      const b = bases[c.team];
       c.path = bfsPath(grid, cols, rows, c.x, c.y,
-        (x, y) => x >= d.xMin && x <= d.xMax && y >= d.yMin && y <= d.yMax);
+        (x, y) => x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax);
     }
     if (!c.path || c.path.length === 0) return;
   }
 
-  // Move one step
+  // Record trail before moving
+  c.trail.push({ x: c.x, y: c.y });
+  if (c.trail.length > 8) c.trail.shift();
+
   const { x, y } = c.path.shift();
   c.x = x;
   c.y = y;
 
-  // Arrival checks
   if (c.state === "SEEKING") {
     for (const p of pixels) {
-      if (!p.deposited && !p.carrier && p.x === x && p.y === y) {
+      if (!p.carrier && p.x === x && p.y === y) {
         p.carrier = c;
         c.pixel   = p;
         c.state   = "CARRYING";
@@ -177,16 +183,50 @@ function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
       }
     }
   } else if (c.state === "CARRYING" && c.pixel) {
-    const d = depots[c.team];
-    if (x >= d.xMin && x <= d.xMax && y >= d.yMin && y <= d.yMax) {
-      c.pixel.deposited = true;
-      c.pixel.carrier   = null;
-      c.pixel           = null;
-      c.state           = "SEEKING";
-      c.path            = null;
+    const b = bases[c.team];
+    if (x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax) {
+      // Add block to crystal
+      if (crystals[c.team].length < CRYSTAL_MAX)
+        crystals[c.team].push(1);
       scoreAcc[c.team]++;
+
+      // Respawn pixel at new center-third position so pool stays full
+      const midXMin = Math.floor(cols / 3);
+      const midXMax = Math.floor(cols * 2 / 3);
+      const newSpot = placeOnPath(grid, rows, midXMin, midXMax, 1)[0];
+      if (newSpot) {
+        c.pixel.x       = newSpot.x;
+        c.pixel.y       = newSpot.y;
+        c.pixel.carrier = null;
+      } else {
+        c.pixel.carrier = null;
+      }
+      c.pixel = null;
+      c.state = "SEEKING";
+      c.path  = null;
     }
   }
+}
+
+function drawCrystal(ctx, blocks, centerX, canvasH, colors, time) {
+  const bright = blocks.length >= CRYSTAL_MAX / 2;
+  for (let i = 0; i < blocks.length; i++) {
+    const bx = centerX - BLOCK_W / 2;
+    const by = canvasH - (i + 1) * BLOCK_H;
+    // Subtle brightness variation per block
+    const shimmer = bright ? 0.85 + Math.sin(time * 0.006 + i * 0.4) * 0.15 : 0.7;
+    ctx.shadowBlur  = bright ? 14 : 5;
+    ctx.shadowColor = colors.hot;
+    ctx.globalAlpha = shimmer;
+    ctx.fillStyle   = bright ? colors.hot : colors.mid;
+    ctx.fillRect(bx, by, BLOCK_W, BLOCK_H - 1);
+    // Bright top edge highlight
+    ctx.globalAlpha = shimmer * 0.6;
+    ctx.fillStyle   = "#ffffff";
+    ctx.fillRect(bx, by, BLOCK_W, 1);
+  }
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur  = 0;
 }
 
 export default function LabyrinthLive() {
@@ -197,7 +237,8 @@ export default function LabyrinthLive() {
   const rowsRef         = useRef(0);
   const creaturesRef    = useRef([]);
   const pixelsRef       = useRef([]);
-  const depotsRef       = useRef({ red: null, blue: null });
+  const basesRef        = useRef({ red: null, blue: null });
+  const crystalRef      = useRef({ red: [], blue: [] });
   const rafRef          = useRef(null);
   const frameRef        = useRef(0);
   const scoreAccRef     = useRef({ red: 0, blue: 0 });
@@ -217,7 +258,6 @@ export default function LabyrinthLive() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // New TikTok comment every 3 s, keep last 5
   useEffect(() => {
     const id = setInterval(() => {
       setComments(prev => [...prev, randomComment()].slice(-5));
@@ -235,26 +275,27 @@ export default function LabyrinthLive() {
     rowsRef.current      = rows;
     mazeLayerRef.current = buildMazeCanvas(grid, cols, rows);
 
-    // Depots
-    const redDepot  = { xMin: 1,                   xMax: DEPOT_COLS,           yMin: 1, yMax: rows - 2 };
-    const blueDepot = { xMin: cols - DEPOT_COLS - 1, xMax: cols - 2,            yMin: 1, yMax: rows - 2 };
-    depotsRef.current = { red: redDepot, blue: blueDepot };
+    // Base zones: left/right 15% of cols
+    const baseCols = Math.max(3, Math.floor(cols * BASE_FRAC));
+    const redBase  = { xMin: 1,                  xMax: baseCols,          yMin: 1, yMax: rows - 2 };
+    const blueBase = { xMin: cols - baseCols - 1, xMax: cols - 2,          yMin: 1, yMax: rows - 2 };
+    basesRef.current = { red: redBase, blue: blueBase };
 
-    // Pixels in the middle corridor
-    const midXMin = DEPOT_COLS + 2;
-    const midXMax = cols - DEPOT_COLS - 2;
+    // 30 white pixels in center third of maze
+    const midXMin = Math.floor(cols / 3);
+    const midXMax = Math.floor(cols * 2 / 3);
     const midPixels = placeOnPath(grid, rows, midXMin, midXMax, PIXELS_TOTAL);
-    pixelsRef.current = midPixels.map(({ x, y }) => ({ x, y, carrier: null, deposited: false }));
+    pixelsRef.current = midPixels.map(({ x, y }) => ({ x, y, carrier: null }));
 
-    // 2 creatures per team
-    const third = Math.max(3, Math.floor(cols / 3));
-    const redSpots  = placeOnPath(grid, rows, DEPOT_COLS + 1, third, 2);
-    const blueSpots = placeOnPath(grid, rows, cols - third, cols - DEPOT_COLS - 2, 2);
+    // 2 creatures per team, spawned inside their base
+    const redSpots  = placeOnPath(grid, rows, redBase.xMin,  redBase.xMax  + 1, 2);
+    const blueSpots = placeOnPath(grid, rows, blueBase.xMin, blueBase.xMax + 1, 2);
     creaturesRef.current = [
       ...redSpots.map(({ x, y })  => makeCreature(x, y, "red")),
       ...blueSpots.map(({ x, y }) => makeCreature(x, y, "blue")),
     ];
 
+    crystalRef.current   = { red: [], blue: [] };
     celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
     pendingResetRef.current = false;
     setRedScore(0);
@@ -269,7 +310,6 @@ export default function LabyrinthLive() {
       const maze   = mazeLayerRef.current;
       const grid   = gridRef.current;
 
-      // Trigger reset from previous celebration
       if (pendingResetRef.current) {
         pendingResetRef.current = false;
         setResetCount(n => n + 1);
@@ -279,19 +319,18 @@ export default function LabyrinthLive() {
         const cols    = colsRef.current;
         const rows    = rowsRef.current;
         const pixels  = pixelsRef.current;
-        const depots  = depotsRef.current;
+        const bases   = basesRef.current;
         const acc     = scoreAccRef.current;
         const cel     = celebrationRef.current;
+        const crystal = crystalRef.current;
 
         frameRef.current++;
 
-        // Step creatures only when not celebrating
         if (!cel.active) {
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, depots, acc);
+            stepCreature(c, grid, cols, rows, pixels, bases, acc, crystal);
         }
 
-        // Flush scores and creature counts ~2× per second
         if (frameRef.current % 30 === 0) {
           if (acc.red  > 0) { setRedScore(s  => s + acc.red);  acc.red  = 0; }
           if (acc.blue > 0) { setBlueScore(s => s + acc.blue); acc.blue = 0; }
@@ -302,13 +341,14 @@ export default function LabyrinthLive() {
           });
         }
 
-        // Victory: all pixels deposited
-        if (!cel.active && pixels.length > 0 && pixels.every(p => p.deposited)) {
-          // Flush final scores immediately
+        // Victory: crystal reaches CRYSTAL_MAX blocks
+        const redWon  = crystal.red.length  >= CRYSTAL_MAX;
+        const blueWon = crystal.blue.length >= CRYSTAL_MAX;
+        if (!cel.active && (redWon || blueWon)) {
           setRedScore(s  => s + acc.red);
           setBlueScore(s => s + acc.blue);
-          const winner = (acc.red >= acc.blue) ? "red" : "blue";
           acc.red = acc.blue = 0;
+          const winner = redWon ? "red" : "blue";
           const hw = canvas.width / 2, hh = canvas.height / 2;
           const particles = Array.from({ length: 120 }, () => {
             const angle = Math.random() * Math.PI * 2;
@@ -333,78 +373,96 @@ export default function LabyrinthLive() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(maze, 0, 0);
 
-        // Depot overlays
-        if (depots.red && depots.blue) {
-          const rd = depots.red, bd = depots.blue;
+        // ── Base zone pulsing glow overlays ────────────────────────────────
+        if (bases.red && bases.blue) {
+          const basePxW = Math.floor(cols * BASE_FRAC) * CELL;
+          const baseAlpha = 0.05 + Math.sin(time * 0.004) * 0.03;
           ctx.save();
-          ctx.globalAlpha = 0.12;
+          ctx.globalAlpha = baseAlpha;
           ctx.fillStyle = RED.hot;
-          ctx.fillRect(rd.xMin * CELL, rd.yMin * CELL, (rd.xMax - rd.xMin + 1) * CELL, (rd.yMax - rd.yMin + 1) * CELL);
+          ctx.fillRect(0, 0, basePxW, canvas.height);
+          ctx.globalAlpha = baseAlpha;
           ctx.fillStyle = BLUE.hot;
-          ctx.fillRect(bd.xMin * CELL, bd.yMin * CELL, (bd.xMax - bd.xMin + 1) * CELL, (bd.yMax - bd.yMin + 1) * CELL);
+          ctx.fillRect(canvas.width - basePxW, 0, basePxW, canvas.height);
           ctx.restore();
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = RED.mid;
-          ctx.strokeRect(rd.xMin * CELL + 0.5, rd.yMin * CELL + 0.5,
-            (rd.xMax - rd.xMin + 1) * CELL - 1, (rd.yMax - rd.yMin + 1) * CELL - 1);
-          ctx.strokeStyle = BLUE.mid;
-          ctx.strokeRect(bd.xMin * CELL + 0.5, bd.yMin * CELL + 0.5,
-            (bd.xMax - bd.xMin + 1) * CELL - 1, (bd.yMax - bd.yMin + 1) * CELL - 1);
         }
 
-        // Loose pixels
-        ctx.shadowBlur  = 5;
-        ctx.shadowColor = "#ffffffaa";
-        ctx.fillStyle   = "#ffffff";
+        // ── White pixels — firefly flash ───────────────────────────────────
         for (const p of pixels) {
-          if (p.deposited || p.carrier) continue;
+          if (p.carrier) continue;
+          const on = (frameRef.current + p.x * 3 + p.y * 7) % 20 < 10;
+          ctx.shadowBlur  = on ? 25 : 5;
+          ctx.shadowColor = "#ffffff";
+          ctx.fillStyle   = "#ffffff";
           ctx.beginPath();
-          ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, 1.5, 0, Math.PI * 2);
+          ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, 3, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.shadowBlur = 0;
 
-        // Creatures (with dance effect during celebration)
+        // ── Crystals ───────────────────────────────────────────────────────
+        if (bases.red && bases.blue) {
+          const basePxW   = Math.floor(cols * BASE_FRAC) * CELL;
+          const redCenterX  = basePxW / 2;
+          const blueCenterX = canvas.width - basePxW / 2;
+          ctx.save();
+          drawCrystal(ctx, crystal.red,  redCenterX,  canvas.height, RED,  time);
+          drawCrystal(ctx, crystal.blue, blueCenterX, canvas.height, BLUE, time);
+          ctx.restore();
+        }
+
+        // ── Creatures — trails then body ───────────────────────────────────
         for (const c of creaturesRef.current) {
-          const colors     = c.team === "red" ? RED : BLUE;
+          const bodyColor  = CREATURE_COLOR[c.team];
           const cx         = c.x * CELL + CELL / 2;
           const cy         = c.y * CELL + CELL / 2;
           const dancing    = cel.active;
           const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
-          ctx.shadowBlur  = 10 * pulse * (dancing ? 2.5 : 1);
-          ctx.shadowColor = colors.hot;
-          const r = 1.5 * danceScale;
-          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2);
+          for (let i = 0; i < c.trail.length; i++) {
+            const t    = c.trail[i];
+            const frac = (i + 1) / c.trail.length;
+            ctx.save();
+            ctx.globalAlpha = frac * 0.6;
+            ctx.shadowBlur  = 6;
+            ctx.shadowColor = bodyColor;
+            ctx.fillStyle   = bodyColor;
+            ctx.beginPath();
+            ctx.arc(t.x * CELL + CELL / 2, t.y * CELL + CELL / 2, 2.5 * frac, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+
+          const r         = 4 * danceScale;
+          const glowPulse = 20 + Math.sin(time * 0.005 + cx) * 10;
+          ctx.shadowBlur  = glowPulse * (dancing ? 2 : 1);
+          ctx.shadowColor = bodyColor;
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
           grad.addColorStop(0,   "#ffffff");
-          grad.addColorStop(0.4, colors.mid);
-          grad.addColorStop(1,   colors.deep);
+          grad.addColorStop(0.5, bodyColor);
+          grad.addColorStop(1,   bodyColor + "88");
           ctx.fillStyle = grad;
           ctx.beginPath();
           ctx.arc(cx, cy, r, 0, Math.PI * 2);
           ctx.fill();
 
-          if (c.state === "CARRYING") {
-            ctx.shadowBlur  = 6;
-            ctx.shadowColor = "#ffffff";
-            ctx.fillStyle   = "#ffffff";
-            ctx.beginPath();
-            ctx.arc(cx, cy, 1, 0, Math.PI * 2);
-            ctx.fill();
-          }
+          ctx.shadowBlur  = 8;
+          ctx.shadowColor = "#ffffff";
+          ctx.fillStyle   = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
         }
 
-        // Celebration overlay
+        // ── Celebration overlay ────────────────────────────────────────────
         if (cel.active) {
           const winColors  = cel.winner === "red" ? RED : BLUE;
-          const flashAlpha = (0.1 + Math.sin(time * 0.015) * 0.08);
           ctx.save();
-          ctx.globalAlpha = flashAlpha;
+          ctx.globalAlpha = 0.1 + Math.sin(time * 0.015) * 0.08;
           ctx.fillStyle   = winColors.hot;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.restore();
 
-          // Particles
           for (const p of cel.particles) {
             if (p.life <= 0) continue;
             p.x  += p.vx;
@@ -423,16 +481,14 @@ export default function LabyrinthLive() {
             ctx.restore();
           }
 
-          // Winner text
-          const fontSize = Math.min(canvas.width / 8, 64) *
-            (1 + Math.sin(time * 0.008) * 0.06);
+          const fontSize = Math.min(canvas.width / 8, 64) * (1 + Math.sin(time * 0.008) * 0.06);
           ctx.save();
-          ctx.shadowBlur    = 30;
-          ctx.shadowColor   = winColors.hot;
-          ctx.fillStyle     = "#ffffff";
-          ctx.font          = `bold ${fontSize}px 'Courier New', monospace`;
-          ctx.textAlign     = "center";
-          ctx.textBaseline  = "middle";
+          ctx.shadowBlur   = 30;
+          ctx.shadowColor  = winColors.hot;
+          ctx.fillStyle    = "#ffffff";
+          ctx.font         = `bold ${fontSize}px 'Courier New', monospace`;
+          ctx.textAlign    = "center";
+          ctx.textBaseline = "middle";
           ctx.fillText(`${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height / 2);
           ctx.restore();
 
