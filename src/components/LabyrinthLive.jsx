@@ -1,22 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const CELL = 4;
-const GRAINS_PER_TEAM = 50;
-const PIXELS_TOTAL = 20;
-const DEPOT_COLS = 4;
+const CELL           = 4;
+const PIXELS_TOTAL   = 20;
+const DEPOT_COLS     = 4;
+const CREATURE_INTERVAL = 6;  // frames between steps
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
 const RED  = { hot: "#ff2d55", mid: "#ff6b9d", deep: "#c21858", glow: "rgba(255,45,85,0.4)" };
 const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,189,248,0.4)" };
-
-const SPECIES_META = {
-  rosier: { label: "🌸 Rosier", interval: 8, radius: 2,   glow: 10 },
-  leon:   { label: "🦁 Léon",  interval: 8, radius: 3,   glow: 14 },
-  fusio:  { label: "🚀 Fusio", interval: 3, radius: 2,   glow: 12 },
-  cosmik: { label: "🌌 Cosmik",interval: 8, radius: 2.5, glow: 11 },
-};
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
 
@@ -44,7 +37,7 @@ function generateMaze(cols, rows) {
   return grid;
 }
 
-function placeGrains(grid, rows, xMin, xMax, count) {
+function placeOnPath(grid, rows, xMin, xMax, count) {
   const cands = [];
   for (let y = 1; y < rows - 1; y++)
     for (let x = xMin; x < xMax; x++)
@@ -58,7 +51,7 @@ function placeGrains(grid, rows, xMin, xMax, count) {
 
 function buildMazeCanvas(grid, cols, rows) {
   const off = document.createElement("canvas");
-  off.width = cols * CELL;
+  off.width  = cols * CELL;
   off.height = rows * CELL;
   const ctx = off.getContext("2d");
   ctx.fillStyle = "#050510";
@@ -75,89 +68,114 @@ function buildMazeCanvas(grid, cols, rows) {
   return off;
 }
 
-function paintCell(ctx, x, y, isWall) {
-  if (isWall) {
-    ctx.fillStyle = "#0e1030";
-    ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
-    ctx.strokeStyle = "rgba(110,150,255,0.22)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x * CELL + 0.5, y * CELL + 0.5, CELL - 1, CELL - 1);
-  } else {
-    ctx.fillStyle = "#050510";
-    ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+// BFS from (sx, sy); returns array of {x,y} steps to nearest target, or null.
+function bfsPath(grid, cols, rows, sx, sy, isTarget) {
+  if (isTarget(sx, sy)) return [];
+  const startKey = sy * cols + sx;
+  const parent   = new Map([[startKey, -1]]);
+  const queue    = [startKey];
+
+  while (queue.length) {
+    const curKey = queue.shift();
+    const cx = curKey % cols;
+    const cy = (curKey - cx) / cols;
+    for (const [dx, dy] of MOVE_DIRS) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx <= 0 || nx >= cols - 1 || ny <= 0 || ny >= rows - 1) continue;
+      if (grid[ny][nx] !== PATH) continue;
+      const nKey = ny * cols + nx;
+      if (parent.has(nKey)) continue;
+      parent.set(nKey, curKey);
+      if (isTarget(nx, ny)) {
+        const path = [];
+        let k = nKey;
+        while (k !== startKey) {
+          const x = k % cols, y = (k - x) / cols;
+          path.unshift({ x, y });
+          k = parent.get(k);
+        }
+        return path;
+      }
+      queue.push(nKey);
+    }
   }
+  return null;
 }
 
-function makeCreature(x, y, team, species) {
+function makeCreature(x, y, team) {
   return {
-    x, y, prevX: x, prevY: y,
-    team, species,
-    moveTimer: Math.floor(Math.random() * SPECIES_META[species].interval),
+    x, y, team,
+    state: "SEEKING",  // SEEKING | CARRYING
+    path: null,
+    pixel: null,
+    moveTimer: Math.floor(Math.random() * CREATURE_INTERVAL),
   };
 }
 
-function stepCreature(c, grid, cols, rows, mazeCtx) {
+function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
   c.moveTimer--;
-  if (c.moveTimer > 0) return 0;
-  c.moveTimer = SPECIES_META[c.species].interval;
+  if (c.moveTimer > 0) return;
+  c.moveTimer = CREATURE_INTERVAL;
 
-  const { x, y, species } = c;
-
-  const neighbors = [];
-  for (const [dx, dy] of MOVE_DIRS) {
-    const nx = x + dx, ny = y + dy;
-    if (nx <= 0 || nx >= cols - 1 || ny <= 0 || ny >= rows - 1) continue;
-    if (species === "cosmik") {
-      if (grid[ny][nx] === PATH) neighbors.push([nx, ny]);
+  // Recalculate path when empty
+  if (!c.path || c.path.length === 0) {
+    if (c.state === "SEEKING") {
+      const pixelKeys = new Set();
+      for (const p of pixels)
+        if (!p.deposited && !p.carrier) pixelKeys.add(p.y * cols + p.x);
+      if (pixelKeys.size === 0) return;
+      c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeys.has(y * cols + x));
     } else {
-      neighbors.push([nx, ny]);
+      const d = depots[c.team];
+      c.path = bfsPath(grid, cols, rows, c.x, c.y,
+        (x, y) => x >= d.xMin && x <= d.xMax && y >= d.yMin && y <= d.yMax);
+    }
+    if (!c.path || c.path.length === 0) return;
+  }
+
+  // Move one step
+  const { x, y } = c.path.shift();
+  c.x = x;
+  c.y = y;
+
+  // Arrival checks
+  if (c.state === "SEEKING") {
+    for (const p of pixels) {
+      if (!p.deposited && !p.carrier && p.x === x && p.y === y) {
+        p.carrier = c;
+        c.pixel   = p;
+        c.state   = "CARRYING";
+        c.path    = null;
+        break;
+      }
+    }
+  } else if (c.state === "CARRYING" && c.pixel) {
+    const d = depots[c.team];
+    if (x >= d.xMin && x <= d.xMax && y >= d.yMin && y <= d.yMax) {
+      c.pixel.deposited = true;
+      c.pixel.carrier   = null;
+      c.pixel           = null;
+      c.state           = "SEEKING";
+      c.path            = null;
+      scoreAcc[c.team]++;
     }
   }
-
-  if (neighbors.length === 0) return 0;
-
-  const [nx, ny] = neighbors[Math.floor(Math.random() * neighbors.length)];
-  let scored = 0;
-
-  // Dig: entering a WALL cell converts it to PATH
-  if (grid[ny][nx] === WALL && species !== "cosmik") {
-    grid[ny][nx] = PATH;
-    paintCell(mazeCtx, nx, ny, false);
-    scored = 1;
-  }
-
-  c.prevX = c.x;
-  c.prevY = c.y;
-  c.x = nx;
-  c.y = ny;
-
-  // Build: Léon and Cosmik wall off the cell they just left
-  if (species === "leon" || species === "cosmik") {
-    const { prevX, prevY } = c;
-    if (prevX > 0 && prevX < cols - 1 && prevY > 0 && prevY < rows - 1 && grid[prevY][prevX] === PATH) {
-      grid[prevY][prevX] = WALL;
-      paintCell(mazeCtx, prevX, prevY, true);
-    }
-  }
-
-  return scored;
 }
 
 export default function LabyrinthLive() {
-  const canvasRef   = useRef(null);
+  const canvasRef    = useRef(null);
   const mazeLayerRef = useRef(null);
-  const mazeCtxRef  = useRef(null);
-  const gridRef     = useRef(null);
-  const colsRef     = useRef(0);
-  const rowsRef     = useRef(0);
+  const gridRef      = useRef(null);
+  const colsRef      = useRef(0);
+  const rowsRef      = useRef(0);
   const creaturesRef = useRef([]);
-  const pixelsRef   = useRef([]);   // loose collectible pixels in the maze
-  const depotsRef   = useRef({ red: null, blue: null });
-  const rafRef      = useRef(null);
-  const frameRef    = useRef(0);
-  const scoreAccRef = useRef({ red: 0, blue: 0 });
+  const pixelsRef    = useRef([]);
+  const depotsRef    = useRef({ red: null, blue: null });
+  const rafRef       = useRef(null);
+  const frameRef     = useRef(0);
+  const scoreAccRef  = useRef({ red: 0, blue: 0 });
 
-  const [redScore, setRedScore]   = useState(0);
+  const [redScore,  setRedScore]  = useState(0);
   const [blueScore, setBlueScore] = useState(0);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
@@ -172,71 +190,60 @@ export default function LabyrinthLive() {
     const rows = oddify(Math.max(9, Math.floor(vp.h / CELL)));
     const grid = generateMaze(cols, rows);
 
-    gridRef.current  = grid;
-    colsRef.current  = cols;
-    rowsRef.current  = rows;
+    gridRef.current      = grid;
+    colsRef.current      = cols;
+    rowsRef.current      = rows;
+    mazeLayerRef.current = buildMazeCanvas(grid, cols, rows);
 
-    const off = buildMazeCanvas(grid, cols, rows);
-    mazeLayerRef.current = off;
-    mazeCtxRef.current   = off.getContext("2d");
-
-    const third     = Math.max(3, Math.floor(cols / 3));
-    const redSpots  = placeGrains(grid, rows, 1, third, GRAINS_PER_TEAM);
-    const blueSpots = placeGrains(grid, rows, cols - third, cols - 1, GRAINS_PER_TEAM);
-
-    creaturesRef.current = [
-      ...redSpots.map(({ x, y }) => makeCreature(x, y, "red",  "rosier")),
-      ...blueSpots.map(({ x, y }) => makeCreature(x, y, "blue", "rosier")),
-    ];
-
-    // Depot zones (exclusive of boundary walls)
-    const redDepot  = { xMin: 1,               xMax: DEPOT_COLS,           yMin: 1, yMax: rows - 2 };
-    const blueDepot = { xMin: cols - DEPOT_COLS - 1, xMax: cols - 2,       yMin: 1, yMax: rows - 2 };
+    // Depots
+    const redDepot  = { xMin: 1,                   xMax: DEPOT_COLS,           yMin: 1, yMax: rows - 2 };
+    const blueDepot = { xMin: cols - DEPOT_COLS - 1, xMax: cols - 2,            yMin: 1, yMax: rows - 2 };
     depotsRef.current = { red: redDepot, blue: blueDepot };
 
-    // Scatter pixels in the middle corridor, away from both depots
+    // Pixels in the middle corridor
     const midXMin = DEPOT_COLS + 2;
     const midXMax = cols - DEPOT_COLS - 2;
-    const cands = [];
-    for (let y = 1; y < rows - 1; y++)
-      for (let x = midXMin; x < midXMax; x++)
-        if (grid[y][x] === PATH) cands.push({ x, y });
-    for (let i = cands.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [cands[i], cands[j]] = [cands[j], cands[i]];
-    }
-    pixelsRef.current = cands.slice(0, PIXELS_TOTAL).map(({ x, y }) => ({
-      x, y, carrier: null, deposited: false,
-    }));
+    const midPixels = placeOnPath(grid, rows, midXMin, midXMax, PIXELS_TOTAL);
+    pixelsRef.current = midPixels.map(({ x, y }) => ({ x, y, carrier: null, deposited: false }));
+
+    // 2 creatures per team
+    const third = Math.max(3, Math.floor(cols / 3));
+    const redSpots  = placeOnPath(grid, rows, DEPOT_COLS + 1, third, 2);
+    const blueSpots = placeOnPath(grid, rows, cols - third, cols - DEPOT_COLS - 2, 2);
+    creaturesRef.current = [
+      ...redSpots.map(({ x, y })  => makeCreature(x, y, "red")),
+      ...blueSpots.map(({ x, y }) => makeCreature(x, y, "blue")),
+    ];
 
     setRedScore(0);
     setBlueScore(0);
     scoreAccRef.current = { red: 0, blue: 0 };
+    frameRef.current    = 0;
   }, [vp]);
 
   useEffect(() => {
     const render = (time) => {
-      const canvas   = canvasRef.current;
-      const maze     = mazeLayerRef.current;
-      const grid     = gridRef.current;
-      const mazeCtx  = mazeCtxRef.current;
+      const canvas = canvasRef.current;
+      const maze   = mazeLayerRef.current;
+      const grid   = gridRef.current;
 
-      if (canvas && maze && grid && mazeCtx) {
-        const cols = colsRef.current;
-        const rows = rowsRef.current;
+      if (canvas && maze && grid) {
+        const cols    = colsRef.current;
+        const rows    = rowsRef.current;
+        const pixels  = pixelsRef.current;
+        const depots  = depotsRef.current;
+        const acc     = scoreAccRef.current;
 
         frameRef.current++;
 
-        for (const c of creaturesRef.current) {
-          const pts = stepCreature(c, grid, cols, rows, mazeCtx);
-          if (pts) scoreAccRef.current[c.team] += pts;
-        }
+        // Step all creatures
+        for (const c of creaturesRef.current)
+          stepCreature(c, grid, cols, rows, pixels, depots, acc);
 
-        // Flush accumulated scores to state ~2× per second
+        // Flush scores to state ~2× per second
         if (frameRef.current % 30 === 0) {
-          const { red, blue } = scoreAccRef.current;
-          if (red  > 0) { setRedScore(s  => s + red);  scoreAccRef.current.red  = 0; }
-          if (blue > 0) { setBlueScore(s => s + blue); scoreAccRef.current.blue = 0; }
+          if (acc.red  > 0) { setRedScore(s  => s + acc.red);  acc.red  = 0; }
+          if (acc.blue > 0) { setBlueScore(s => s + acc.blue); acc.blue = 0; }
         }
 
         const ctx   = canvas.getContext("2d");
@@ -246,11 +253,9 @@ export default function LabyrinthLive() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(maze, 0, 0);
 
-        // Draw depot zones
-        const depots = depotsRef.current;
+        // Depot overlays
         if (depots.red && depots.blue) {
-          const rd = depots.red;
-          const bd = depots.blue;
+          const rd = depots.red, bd = depots.blue;
           ctx.save();
           ctx.globalAlpha = 0.12;
           ctx.fillStyle = RED.hot;
@@ -260,42 +265,51 @@ export default function LabyrinthLive() {
           ctx.restore();
           ctx.lineWidth = 1;
           ctx.strokeStyle = RED.mid;
-          ctx.strokeRect(rd.xMin * CELL + 0.5, rd.yMin * CELL + 0.5, (rd.xMax - rd.xMin + 1) * CELL - 1, (rd.yMax - rd.yMin + 1) * CELL - 1);
+          ctx.strokeRect(rd.xMin * CELL + 0.5, rd.yMin * CELL + 0.5,
+            (rd.xMax - rd.xMin + 1) * CELL - 1, (rd.yMax - rd.yMin + 1) * CELL - 1);
           ctx.strokeStyle = BLUE.mid;
-          ctx.strokeRect(bd.xMin * CELL + 0.5, bd.yMin * CELL + 0.5, (bd.xMax - bd.xMin + 1) * CELL - 1, (bd.yMax - bd.yMin + 1) * CELL - 1);
+          ctx.strokeRect(bd.xMin * CELL + 0.5, bd.yMin * CELL + 0.5,
+            (bd.xMax - bd.xMin + 1) * CELL - 1, (bd.yMax - bd.yMin + 1) * CELL - 1);
         }
 
-        // Draw loose pixels
-        ctx.shadowBlur = 5;
+        // Loose pixels
+        ctx.shadowBlur  = 5;
         ctx.shadowColor = "#ffffffaa";
-        ctx.fillStyle = "#ffffff";
-        for (const p of pixelsRef.current) {
+        ctx.fillStyle   = "#ffffff";
+        for (const p of pixels) {
           if (p.deposited || p.carrier) continue;
-          const px = p.x * CELL + CELL / 2;
-          const py = p.y * CELL + CELL / 2;
           ctx.beginPath();
-          ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+          ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, 1.5, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.shadowBlur = 0;
 
+        // Creatures
         for (const c of creaturesRef.current) {
           const colors = c.team === "red" ? RED : BLUE;
-          const meta   = SPECIES_META[c.species];
           const cx     = c.x * CELL + CELL / 2;
           const cy     = c.y * CELL + CELL / 2;
 
-          ctx.shadowBlur  = meta.glow * pulse;
+          ctx.shadowBlur  = 10 * pulse;
           ctx.shadowColor = colors.hot;
-
-          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, meta.radius);
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 3);
           grad.addColorStop(0,   "#ffffff");
           grad.addColorStop(0.4, colors.mid);
           grad.addColorStop(1,   colors.deep);
           ctx.fillStyle = grad;
           ctx.beginPath();
-          ctx.arc(cx, cy, meta.radius / 2, 0, Math.PI * 2);
+          ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
           ctx.fill();
+
+          // White dot on top when carrying a pixel
+          if (c.state === "CARRYING") {
+            ctx.shadowBlur  = 6;
+            ctx.shadowColor = "#ffffff";
+            ctx.fillStyle   = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(cx, cy, 1, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
 
         ctx.shadowBlur = 0;
@@ -306,18 +320,6 @@ export default function LabyrinthLive() {
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, []);
-
-  const spawn = useCallback((species) => {
-    const grid = gridRef.current;
-    const cols = colsRef.current;
-    const rows = rowsRef.current;
-    if (!grid) return;
-    const third     = Math.max(3, Math.floor(cols / 3));
-    const redSpots  = placeGrains(grid, rows, 1, third, 1);
-    const blueSpots = placeGrains(grid, rows, cols - third, cols - 1, 1);
-    if (redSpots[0])  creaturesRef.current.push(makeCreature(redSpots[0].x,  redSpots[0].y,  "red",  species));
-    if (blueSpots[0]) creaturesRef.current.push(makeCreature(blueSpots[0].x, blueSpots[0].y, "blue", species));
   }, []);
 
   const pad2 = n => String(n).padStart(2, "0");
@@ -361,44 +363,6 @@ export default function LabyrinthLive() {
           <span>💙</span>
           <span style={{ color: BLUE.mid }}>BLUE</span>
         </div>
-      </div>
-
-      {/* Gift Buttons */}
-      <div style={{
-        position: "absolute", bottom: 20, left: 0, right: 0,
-        display: "flex", justifyContent: "center", gap: 12,
-        zIndex: 10,
-      }}>
-        {Object.entries(SPECIES_META).map(([key, meta]) => (
-          <button
-            key={key}
-            onClick={() => spawn(key)}
-            style={{
-              background: "rgba(0,0,0,0.6)",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: 16,
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 600,
-              padding: "8px 16px",
-              cursor: "pointer",
-              fontFamily: "'Courier New', monospace",
-              letterSpacing: 0.5,
-              transition: "background 0.15s, border-color 0.15s",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.35)";
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = "rgba(0,0,0,0.6)";
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
-            }}
-          >
-            {meta.label}
-          </button>
-        ))}
       </div>
 
       <style>{`
