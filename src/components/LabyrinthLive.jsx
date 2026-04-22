@@ -17,18 +17,18 @@ const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,1
 const CREATURE_COLOR = { red: "#ff0044", blue: "#00ccff" };
 
 const RED_GIFTS = [
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp", label: "Rose",         cost:  1, count: 1, radius: 2, interval: 10 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp", label: "Finger Heart", cost:  5, count: 2, radius: 3, interval:  6 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eb77ead5c3abb6da6034d3cf6cfeb438~tplv-obj.webp", label: "Rosa",         cost: 10, count: 2, radius: 4, interval:  4 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp", label: "Perfume",      cost: 20, count: 3, radius: 5, interval:  8 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp", label: "Doughnut",     cost: 30, count: 2, radius: 3, interval:  5 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp",     label: "Rose",         cost:  1, count: 1, radius: 2, interval: 10 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp", label: "Finger Heart", cost:  5, count: 1, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eb77ead5c3abb6da6034d3cf6cfeb438~tplv-obj.webp",     label: "Rosa",         cost: 10, count: 2, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp",     label: "Perfume",      cost: 20, count: 3, radius: 4, interval:  4 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",     label: "Doughnut",     cost: 30, count: 1, radius: 3, interval:  5, rush: true },
 ];
 const BLUE_GIFTS = [
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp", label: "TikTok",     cost:  1, count: 1, radius: 2, interval: 10 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp", label: "Overreact",  cost:  5, count: 2, radius: 3, interval:  6 },
-  { emoji: "🐰",                                                                                                                   label: "Tiny Bunny", cost: 10, count: 2, radius: 4, interval:  4 },
-  { emoji: "🦎",                                                                                                                   label: "Tiny Diny",  cost: 20, count: 3, radius: 5, interval:  8 },
-  { emoji: "🦫",                                                                                                                   label: "Capybara",   cost: 30, count: 2, radius: 3, interval:  5 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp",                              label: "TikTok",               cost:  1, count: 1, radius: 2, interval: 10 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp",                   label: "Overreact",            cost:  5, count: 1, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/e033c3f28632e233bebac1668ff66a2f.png~tplv-obj.webp",                   label: "Friendship Necklace",  cost: 10, count: 2, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/40ba71a3b3d6b9f799d99082f36b2baa.png~tplv-obj.webp",                   label: "LIVE",                 cost: 20, count: 3, radius: 4, interval:  4 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp",                   label: "Bravo",                cost: 30, count: 1, radius: 3, interval:  5, rush: true },
 ];
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
@@ -616,7 +616,7 @@ export default function LabyrinthLive() {
         {RED_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.label === "Doughnut") activateRush("red"); }}
+            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.rush) activateRush("red"); }}
             style={{
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,45,85,0.25)",
@@ -645,7 +645,7 @@ export default function LabyrinthLive() {
         {BLUE_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.label === "Capybara") activateRush("blue"); }}
+            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.rush) activateRush("blue"); }}
             style={{
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(56,189,248,0.25)",
@@ -661,10 +661,7 @@ export default function LabyrinthLive() {
           >
             <span style={{ opacity: 0.55, marginRight: 2 }}>{g.cost}pt</span>
             <span style={{ color: BLUE.mid }}>{g.label}</span>
-            {g.icon
-              ? <img src={g.icon} alt={g.label} style={{ width: 28, height: 28, objectFit: "contain" }} />
-              : <span>{g.emoji}</span>
-            }
+            <img src={g.icon} alt={g.label} style={{ width: 28, height: 28, objectFit: "contain" }} />
           </button>
         ))}
       </div>
