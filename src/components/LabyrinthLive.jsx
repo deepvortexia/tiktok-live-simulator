@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 const CELL           = 4;
 const PIXELS_TOTAL   = 20;
 const DEPOT_COLS     = 4;
-const CREATURE_INTERVAL = 6;  // frames between steps
+const CREATURE_INTERVAL  = 6;   // initial stagger only
+const INTERVAL_FAR       = 25;  // frames/step when path > NEAR_THRESHOLD
+const INTERVAL_NEAR      = 12;  // frames/step when path ≤ NEAR_THRESHOLD
+const NEAR_THRESHOLD     = 20;  // path steps considered "close"
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -116,7 +119,6 @@ function makeCreature(x, y, team) {
 function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
-  c.moveTimer = CREATURE_INTERVAL;
 
   // Recalculate path when empty
   if (!c.path || c.path.length === 0) {
@@ -124,14 +126,14 @@ function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
       const pixelKeys = new Set();
       for (const p of pixels)
         if (!p.deposited && !p.carrier) pixelKeys.add(p.y * cols + p.x);
-      if (pixelKeys.size === 0) return;
+      if (pixelKeys.size === 0) { c.moveTimer = INTERVAL_FAR; return; }
       c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeys.has(y * cols + x));
     } else {
       const d = depots[c.team];
       c.path = bfsPath(grid, cols, rows, c.x, c.y,
         (x, y) => x >= d.xMin && x <= d.xMax && y >= d.yMin && y <= d.yMax);
     }
-    if (!c.path || c.path.length === 0) return;
+    if (!c.path || c.path.length === 0) { c.moveTimer = INTERVAL_FAR; return; }
   }
 
   // Record trail before moving
@@ -142,6 +144,9 @@ function stepCreature(c, grid, cols, rows, pixels, depots, scoreAcc) {
   const { x, y } = c.path.shift();
   c.x = x;
   c.y = y;
+
+  // Speed: fast when close to target, slow when far
+  c.moveTimer = (c.path.length <= NEAR_THRESHOLD) ? INTERVAL_NEAR : INTERVAL_FAR;
 
   // Arrival checks
   if (c.state === "SEEKING") {
