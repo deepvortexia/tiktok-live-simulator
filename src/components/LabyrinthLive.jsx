@@ -225,6 +225,7 @@ export default function LabyrinthLive() {
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
   const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
+  const frenzyRef       = useRef({ active: false, endFrame: 0 });
   const timerRef        = useRef(180);
   const wallColorStateRef = useRef("tied");
 
@@ -281,7 +282,8 @@ export default function LabyrinthLive() {
     scoreTotalsRef.current  = { red: 0, blue: 0 };
     celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
     pendingResetRef.current = false;
-    rushRef.current = { red: { active: false, endFrame: 0, totalFrames: 1 }, blue: { active: false, endFrame: 0, totalFrames: 1 } };
+    rushRef.current   = { red: { active: false, endFrame: 0, totalFrames: 1 }, blue: { active: false, endFrame: 0, totalFrames: 1 } };
+    frenzyRef.current = { active: false, endFrame: 0 };
     setRedScore(0);
     setBlueScore(0);
     timerRef.current = 180;
@@ -307,12 +309,25 @@ export default function LabyrinthLive() {
         const bases  = basesRef.current;
         const cel    = celebrationRef.current;
         const rush   = rushRef.current;
+        const frenzy = frenzyRef.current;
 
         frameRef.current++;
 
         for (const team of ["red", "blue"])
           if (rush[team].active && frameRef.current >= rush[team].endFrame)
             rush[team].active = false;
+
+        if (frenzy.active && frameRef.current >= frenzy.endFrame)
+          frenzy.active = false;
+
+        // Auto-frenzy every 1800 frames while game is running
+        if (!cel.active && timerRef.current > 0 && frameRef.current > 0 && frameRef.current % 1800 === 0) {
+          frenzy.active   = true;
+          frenzy.endFrame = frameRef.current + 300;
+          // If rush already active per team, extend it by 300 instead of double-counting
+          for (const team of ["red", "blue"])
+            if (rush[team].active) rush[team].endFrame += 300;
+        }
 
         if (!cel.active) {
           const onScore = (team) => {
@@ -324,7 +339,7 @@ export default function LabyrinthLive() {
             else setBlueScore(total);
           };
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active);
+            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active || frenzy.active);
         }
 
         if (frameRef.current % 10 === 0) {
@@ -514,6 +529,26 @@ export default function LabyrinthLive() {
           ctx.fillText(cel.winner === "draw" ? "DRAW!" : `${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height * 0.25);
 
           if (frameRef.current >= cel.endFrame) pendingResetRef.current = true;
+        }
+
+        // ── Frenzy overlay ─────────────────────────────────────────────────
+        if (frenzy.active) {
+          const framesLeft = frenzy.endFrame - frameRef.current;
+          // White flash for first 8 frames
+          if (framesLeft > 292) {
+            ctx.globalAlpha = (framesLeft - 292) / 8 * 0.45;
+            ctx.fillStyle   = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalAlpha = 1;
+          }
+          const frenzySize = Math.min(canvas.width / 7, 72);
+          ctx.font         = `bold ${frenzySize}px 'Courier New', monospace`;
+          ctx.textAlign    = "center";
+          ctx.textBaseline = "middle";
+          ctx.shadowBlur   = 24;
+          ctx.shadowColor  = "#ffe066";
+          ctx.fillStyle    = "#ffe066";
+          ctx.fillText("⚡ FRENZY!", canvas.width / 2, canvas.height / 2);
         }
 
         ctx.shadowBlur = 0;
