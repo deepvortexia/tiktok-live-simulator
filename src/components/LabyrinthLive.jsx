@@ -679,7 +679,7 @@ export default function LabyrinthLive() {
         </div>
 
         {/* Frenzy countdown bar — always visible during game */}
-        {frenzyDisplay > 0 && (
+        {frenzyDisplay > 0 && timeLeft > 30 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#ffe066", opacity: 0.85 }}>
               ⚡ NEXT RUSH
