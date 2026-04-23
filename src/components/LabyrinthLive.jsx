@@ -457,18 +457,25 @@ export default function LabyrinthLive() {
           ctx.globalAlpha = 1;
         }
 
-        // ── White pixels — firefly flash ───────────────────────────────────
+        // ── White pixels — steady normally, flash during rush ─────────────
+        const isRushActive = rushRef.current.red.active || rushRef.current.blue.active || frenzyRef.current.active;
         ctx.shadowColor = "#ffffff";
         ctx.fillStyle   = "#ffffff";
         for (let i = 0; i < pixels.length; i++) {
           const p = pixels[i];
           if (p.carrier) continue;
-          const flashOn = ((frameRef.current + i * 7) % 20) < 14;
-          ctx.shadowBlur  = flashOn ? 15 : 3;
-          ctx.globalAlpha = flashOn ? 1 : 0.3;
-          const r = flashOn ? 2.5 : 1.5;
-          ctx.beginPath();
-          ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, r, 0, Math.PI * 2);
+          if (isRushActive) {
+            const flashOn   = ((frameRef.current + i * 7) % 20) < 14;
+            ctx.shadowBlur  = flashOn ? 15 : 3;
+            ctx.globalAlpha = flashOn ? 1 : 0.3;
+            ctx.beginPath();
+            ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, flashOn ? 2.5 : 1.5, 0, Math.PI * 2);
+          } else {
+            ctx.shadowBlur  = 8;
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, 2, 0, Math.PI * 2);
+          }
           ctx.fill();
         }
         ctx.shadowBlur  = 0;
