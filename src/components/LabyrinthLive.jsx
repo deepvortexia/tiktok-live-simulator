@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 
 const CELL             = 4;
 const PIXELS_TOTAL     = 30;
-const SCORE_WIN        = 30;
 const BASE_FRAC        = 0.15;
 const CREATURE_INTERVAL = 4;
 const WALL = 0;
@@ -339,9 +338,7 @@ export default function LabyrinthLive() {
 
         // Victory: timer hits 0 → winner by score, or score threshold reached early
         const sc = scoreTotalsRef.current;
-        const timerDone = !cel.active && timerRef.current <= 0;
-        const scoreDone = !cel.active && (sc.red >= SCORE_WIN || sc.blue >= SCORE_WIN);
-        if (timerDone || scoreDone) {
+        if (!cel.active && timerRef.current <= 0) {
           const winner = sc.red === sc.blue ? "draw"
             : sc.red > sc.blue ? "red" : "blue";
           const hw = canvas.width / 2, hh = canvas.height / 2;
