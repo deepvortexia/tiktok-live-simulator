@@ -7,7 +7,7 @@ const CREATURE_INTERVAL = 4;
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-const MAX_PER_TEAM = 25;
+const MAX_PER_TEAM = 30;
 const TAIL_RENDER_MAX = 40;
 
 const RED  = { hot: "#ff2d55", mid: "#ff6b9d", deep: "#c21858", glow: "rgba(255,45,85,0.4)" };
