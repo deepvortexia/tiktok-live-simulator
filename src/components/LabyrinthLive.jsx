@@ -460,15 +460,19 @@ export default function LabyrinthLive() {
         // ── White pixels — firefly flash ───────────────────────────────────
         ctx.shadowColor = "#ffffff";
         ctx.fillStyle   = "#ffffff";
-        for (const p of pixels) {
+        for (let i = 0; i < pixels.length; i++) {
+          const p = pixels[i];
           if (p.carrier) continue;
-          const on = (frameRef.current + p.x * 3 + p.y * 7) % 20 < 10;
-          ctx.shadowBlur = on ? 12 : 5;
+          const flashOn = ((frameRef.current + i * 7) % 20) < 14;
+          ctx.shadowBlur  = flashOn ? 15 : 3;
+          ctx.globalAlpha = flashOn ? 1 : 0.3;
+          const r = flashOn ? 2.5 : 1.5;
           ctx.beginPath();
-          ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, 3, 0, Math.PI * 2);
+          ctx.arc(p.x * CELL + CELL / 2, p.y * CELL + CELL / 2, r, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.shadowBlur = 0;
+        ctx.shadowBlur  = 0;
+        ctx.globalAlpha = 1;
 
         // ── Creatures — snake tail then body ──────────────────────────────
         for (const c of creaturesRef.current) {
