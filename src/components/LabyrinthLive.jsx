@@ -327,10 +327,11 @@ export default function LabyrinthLive() {
           });
         }
 
-        // Victory: first team to score SCORE_WIN
+        // Victory: first team to SCORE_WIN, or draw if tied
         const sc = scoreTotalsRef.current;
         if (!cel.active && (sc.red >= SCORE_WIN || sc.blue >= SCORE_WIN)) {
-          const winner = sc.red >= SCORE_WIN ? "red" : "blue";
+          const winner = (sc.red >= SCORE_WIN && sc.blue >= SCORE_WIN) ? "draw"
+            : sc.red >= SCORE_WIN ? "red" : "blue";
           const hw = canvas.width / 2, hh = canvas.height / 2;
           const particles = Array.from({ length: 120 }, () => {
             const angle = Math.random() * Math.PI * 2;
@@ -432,7 +433,7 @@ export default function LabyrinthLive() {
 
         // ── Celebration overlay ────────────────────────────────────────────
         if (cel.active) {
-          const winColors = cel.winner === "red" ? RED : BLUE;
+          const winColors = cel.winner === "red" ? RED : cel.winner === "blue" ? BLUE : { hot: "#ffe066", mid: "#fff3a0", glow: "rgba(255,224,102,0.4)" };
 
           ctx.globalAlpha = 0.1 + Math.sin(time * 0.015) * 0.08;
           ctx.fillStyle   = winColors.hot;
@@ -463,7 +464,7 @@ export default function LabyrinthLive() {
           ctx.font         = `bold ${fontSize}px 'Courier New', monospace`;
           ctx.textAlign    = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height * 0.25);
+          ctx.fillText(cel.winner === "draw" ? "DRAW!" : `${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height * 0.25);
 
           if (frameRef.current >= cel.endFrame) pendingResetRef.current = true;
         }
