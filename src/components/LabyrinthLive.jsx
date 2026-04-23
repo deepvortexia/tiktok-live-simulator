@@ -161,8 +161,10 @@ function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   return {
     x, y, team,
     path: null,
+    pathHead: 0,
     pathRetryIn: 0,
     tail: [],
+    tailHead: 0,
     tailMax: 0,
     radius,
     interval,
@@ -170,28 +172,29 @@ function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   };
 }
 
-function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive, pathCaches) {
+function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive, pathCaches, pixelKeySet) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
   c.moveTimer = rushActive ? Math.max(1, Math.floor(c.interval / 3)) : c.interval;
 
-  if (!c.path || c.path.length === 0) {
+  if (!c.path || c.pathHead >= c.path.length) {
     if (c.pathRetryIn > 0) { c.pathRetryIn--; return; }
-    const pixelKeys = new Set();
-    for (const p of pixels)
-      if (!p.carrier) pixelKeys.add(p.y * cols + p.x);
-    if (pixelKeys.size === 0) return;
-    c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeys.has(y * cols + x));
+    if (pixelKeySet.size === 0) return;
+    c.path = bfsPath(grid, cols, rows, c.x, c.y, (x, y) => pixelKeySet.has(y * cols + x));
+    c.pathHead = 0;
     if (!c.path || c.path.length === 0) { c.pathRetryIn = 20; return; }
   }
 
-  // Append current position to tail before moving, trim to tailMax
+  // Append to tail using head pointer — no shift(), compact when prefix is large
   if (c.tailMax > 0) {
     c.tail.push({ x: c.x, y: c.y });
-    if (c.tail.length > c.tailMax) c.tail.shift();
+    if (c.tail.length - c.tailHead > c.tailMax) {
+      c.tailHead++;
+      if (c.tailHead > 200) { c.tail = c.tail.slice(c.tailHead); c.tailHead = 0; }
+    }
   }
 
-  const { x, y } = c.path.shift();
+  const { x, y } = c.path[c.pathHead++];
   c.x = x;
   c.y = y;
 
@@ -199,7 +202,6 @@ function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive, pathCach
   for (const p of pixels) {
     if (!p.carrier && p.x === x && p.y === y) {
       c.tailMax += 4;
-      // Respawn pixel — try 10 candidates from full zone, pick farthest from other pixels
       const fullCells = pathCaches?.full;
       if (fullCells && fullCells.length > 0) {
         let bestSpot = null, bestDist = -1;
@@ -218,6 +220,7 @@ function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive, pathCach
       }
       onScore(c.team);
       c.path = null;
+      c.pathHead = 0;
       break;
     }
   }
@@ -357,16 +360,17 @@ export default function LabyrinthLive() {
         }
 
         if (!cel.active) {
+          // Build pixel key set once per frame — shared across all stepCreature calls
+          const pixelKeySet = new Set();
+          for (const p of pixels) if (!p.carrier) pixelKeySet.add(p.y * cols + p.x);
+
           const onScore = (team) => {
-            const total = creaturesRef.current
-              .filter(c => c.team === team)
-              .reduce((s, c) => s + Math.floor(c.tailMax / 4), 0);
-            scoreTotalsRef.current[team] = total;
-            if (team === "red") setRedScore(total);
-            else setBlueScore(total);
+            scoreTotalsRef.current[team]++;
+            if (team === "red") setRedScore(scoreTotalsRef.current.red);
+            else setBlueScore(scoreTotalsRef.current.blue);
           };
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active || frenzy.active, pathCachesRef.current);
+            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active || frenzy.active, pathCachesRef.current, pixelKeySet);
         }
 
         if (frameRef.current % 10 === 0) {
@@ -491,7 +495,7 @@ export default function LabyrinthLive() {
           const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
           // Snake tail — render up to TAIL_RENDER_MAX dots, oldest first = most faded
-          const tailStart = Math.max(0, c.tail.length - TAIL_RENDER_MAX);
+          const tailStart = Math.max(c.tailHead, c.tail.length - TAIL_RENDER_MAX);
           const visLen    = c.tail.length - tailStart;
           if (visLen > 0) {
             ctx.shadowBlur  = 0;
@@ -512,18 +516,13 @@ export default function LabyrinthLive() {
           const glowPulse = 20 + Math.sin(time * 0.005 + cx) * 10;
           ctx.shadowBlur  = isRushing ? 12 : Math.min(12, glowPulse * (dancing ? 2 : 1));
           ctx.shadowColor = isRushing ? "#ffffff" : bodyColor;
-          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-          grad.addColorStop(0,   "#ffffff");
-          grad.addColorStop(0.5, bodyColor);
-          grad.addColorStop(1,   bodyColor + "88");
-          ctx.fillStyle = grad;
+          ctx.fillStyle = bodyColor;
           ctx.beginPath();
           ctx.arc(cx, cy, r, 0, Math.PI * 2);
           ctx.fill();
 
-          // White core
-          ctx.shadowBlur  = 8;
-          ctx.shadowColor = "#ffffff";
+          // White core — no extra shadowBlur, body glow already set above
+          ctx.shadowBlur  = 0;
           ctx.fillStyle   = "#ffffff";
           ctx.beginPath();
           ctx.arc(cx, cy, Math.max(1, c.radius * 0.35), 0, Math.PI * 2);
