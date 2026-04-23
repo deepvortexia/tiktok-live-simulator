@@ -350,7 +350,7 @@ export default function LabyrinthLive() {
             redTotal:  rush.red.totalFrames,
             blueTotal: rush.blue.totalFrames,
           });
-          setFrenzyDisplay(frenzy.active ? Math.max(0, frenzy.endFrame - frameRef.current) : 0);
+          setFrenzyDisplay(!cel.active && timerRef.current > 0 ? 1800 - (frameRef.current % 1800) : 0);
         }
 
         if (frameRef.current % 30 === 0) {
@@ -653,16 +653,21 @@ export default function LabyrinthLive() {
           {`${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(timeLeft % 60).padStart(2, "0")}`}
         </div>
 
-        {/* Frenzy countdown bar */}
+        {/* Frenzy countdown bar — always visible during game */}
         {frenzyDisplay > 0 && (
-          <div style={{ width: 200, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", borderRadius: 2,
-              width: `${(frenzyDisplay / 300) * 100}%`,
-              background: "#ffe066",
-              boxShadow: "0 0 8px #ffe066",
-              transition: "width 0.1s linear",
-            }} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#ffe066", opacity: 0.85 }}>
+              ⚡ NEXT FRENZY
+            </span>
+            <div style={{ width: 200, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 2,
+                width: `${(frenzyDisplay / 1800) * 100}%`,
+                background: "#ffe066",
+                boxShadow: "0 0 8px #ffe066",
+                transition: "width 0.1s linear",
+              }} />
+            </div>
           </div>
         )}
 
