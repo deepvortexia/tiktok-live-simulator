@@ -216,6 +216,7 @@ export default function LabyrinthLive() {
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
   const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
+  const timerRef        = useRef(180);
 
   const [redScore,       setRedScore]       = useState(0);
   const [blueScore,      setBlueScore]      = useState(0);
@@ -223,6 +224,7 @@ export default function LabyrinthLive() {
   const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
   const [comments,       setComments]       = useState(() => [randomComment(), randomComment(), randomComment()]);
   const [rushDisplay,    setRushDisplay]    = useState({ red: 0, blue: 0 });
+  const [timeLeft,       setTimeLeft]       = useState(180);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   useEffect(() => {
@@ -271,6 +273,8 @@ export default function LabyrinthLive() {
     rushRef.current = { red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } };
     setRedScore(0);
     setBlueScore(0);
+    timerRef.current = 180;
+    setTimeLeft(180);
     frameRef.current = 0;
   }, [vp, resetCount]);
 
@@ -327,11 +331,19 @@ export default function LabyrinthLive() {
           });
         }
 
-        // Victory: first team to SCORE_WIN, or draw if tied
+        // Countdown timer — 1 second per 60 frames
+        if (!cel.active && frameRef.current % 60 === 0 && timerRef.current > 0) {
+          timerRef.current--;
+          setTimeLeft(timerRef.current);
+        }
+
+        // Victory: timer hits 0 → winner by score, or score threshold reached early
         const sc = scoreTotalsRef.current;
-        if (!cel.active && (sc.red >= SCORE_WIN || sc.blue >= SCORE_WIN)) {
-          const winner = (sc.red >= SCORE_WIN && sc.blue >= SCORE_WIN) ? "draw"
-            : sc.red >= SCORE_WIN ? "red" : "blue";
+        const timerDone = !cel.active && timerRef.current <= 0;
+        const scoreDone = !cel.active && (sc.red >= SCORE_WIN || sc.blue >= SCORE_WIN);
+        if (timerDone || scoreDone) {
+          const winner = sc.red === sc.blue ? "draw"
+            : sc.red > sc.blue ? "red" : "blue";
           const hw = canvas.width / 2, hh = canvas.height / 2;
           const particles = Array.from({ length: 120 }, () => {
             const angle = Math.random() * Math.PI * 2;
@@ -552,6 +564,19 @@ export default function LabyrinthLive() {
           <span style={{ color: RED.mid }}>🔴 x{creatureCounts.red}</span>
           <span style={{ opacity: 0.4 }}>vs</span>
           <span style={{ color: BLUE.mid }}>x{creatureCounts.blue} 💙</span>
+        </div>
+
+        {/* Countdown timer */}
+        <div style={{
+          background: "rgba(0,0,0,0.40)", backdropFilter: "blur(8px)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: 16, padding: "3px 18px",
+          fontSize: 13, fontWeight: 700, letterSpacing: 2,
+          color: timeLeft <= 30 ? "#ff2d55" : "#ffffff",
+          fontVariantNumeric: "tabular-nums",
+          transition: "color 0.3s",
+        }}>
+          {`${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(timeLeft % 60).padStart(2, "0")}`}
         </div>
 
         {/* Rush timer bars */}
