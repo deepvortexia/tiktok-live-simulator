@@ -8,7 +8,7 @@ const CREATURE_INTERVAL = 4;
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-const MAX_CREATURES = 12;
+const MAX_CREATURES = 20;
 const TAIL_RENDER_MAX = 40;
 
 const RED  = { hot: "#ff2d55", mid: "#ff6b9d", deep: "#c21858", glow: "rgba(255,45,85,0.4)" };
@@ -484,10 +484,10 @@ export default function LabyrinthLive() {
     const rows  = rowsRef.current;
     const bases = basesRef.current;
     if (!grid || !bases[team]) return;
-    if (creaturesRef.current.length >= MAX_CREATURES) return;
-    const b       = bases[team];
     const allowed = MAX_CREATURES - creaturesRef.current.length;
-    const spots   = placeOnPath(grid, rows, b.xMin, b.xMax + 1, Math.min(count, allowed));
+    if (allowed <= 0) return;
+    const b     = bases[team];
+    const spots = placeOnPath(grid, rows, b.xMin, b.xMax + 1, Math.min(count, allowed));
     for (const { x, y } of spots)
       creaturesRef.current.push(makeCreature(x, y, team, radius, interval));
   };
