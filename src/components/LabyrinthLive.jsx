@@ -95,18 +95,24 @@ function placeOnPath(grid, rows, xMin, xMax, count) {
   return cands.slice(0, count);
 }
 
-function buildMazeCanvas(grid, cols, rows) {
+function buildMazeCanvas(grid, cols, rows, colorScheme = "tied") {
   const off = document.createElement("canvas");
   off.width  = cols * CELL;
   off.height = rows * CELL;
   const ctx = off.getContext("2d");
   ctx.fillStyle = "#050510";
   ctx.fillRect(0, 0, off.width, off.height);
-  ctx.fillStyle = "#0e1030";
+  const wallFill   = colorScheme === "red"  ? "#1a0008"
+                   : colorScheme === "blue" ? "#000e1a"
+                   : "#0e1030";
+  const wallStroke = colorScheme === "red"  ? "rgba(255,45,85,0.22)"
+                   : colorScheme === "blue" ? "rgba(56,189,248,0.22)"
+                   : "rgba(110,150,255,0.22)";
+  ctx.fillStyle = wallFill;
   for (let y = 0; y < rows; y++)
     for (let x = 0; x < cols; x++)
       if (grid[y][x] === WALL) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
-  ctx.strokeStyle = "rgba(110,150,255,0.22)";
+  ctx.strokeStyle = wallStroke;
   ctx.lineWidth = 1;
   for (let y = 0; y < rows; y++)
     for (let x = 0; x < cols; x++)
@@ -216,6 +222,7 @@ export default function LabyrinthLive() {
   const pendingResetRef = useRef(false);
   const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
   const timerRef        = useRef(180);
+  const wallColorStateRef = useRef("tied");
 
   const [redScore,       setRedScore]       = useState(0);
   const [blueScore,      setBlueScore]      = useState(0);
@@ -247,7 +254,8 @@ export default function LabyrinthLive() {
     gridRef.current      = grid;
     colsRef.current      = cols;
     rowsRef.current      = rows;
-    mazeLayerRef.current = buildMazeCanvas(grid, cols, rows);
+    wallColorStateRef.current = "tied";
+    mazeLayerRef.current = buildMazeCanvas(grid, cols, rows, "tied");
 
     const baseCols = Math.max(3, Math.floor(cols * BASE_FRAC));
     const redBase  = { xMin: 1,                  xMax: baseCols,          yMin: 1, yMax: rows - 2 };
@@ -376,9 +384,17 @@ export default function LabyrinthLive() {
 
         const ctx = canvas.getContext("2d");
 
+        // Rebuild maze layer when the winning team changes
+        const sc2 = scoreTotalsRef.current;
+        const newColorState = sc2.red > sc2.blue ? "red" : sc2.blue > sc2.red ? "blue" : "tied";
+        if (newColorState !== wallColorStateRef.current) {
+          wallColorStateRef.current = newColorState;
+          mazeLayerRef.current = buildMazeCanvas(grid, cols, rows, newColorState);
+        }
+
         ctx.fillStyle = "#050510";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(maze, 0, 0);
+        ctx.drawImage(mazeLayerRef.current, 0, 0);
 
         // ── Base zone pulsing glow overlays ────────────────────────────────
         if (bases.red && bases.blue) {
