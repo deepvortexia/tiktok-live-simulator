@@ -7,7 +7,7 @@ const CREATURE_INTERVAL = 4;
 const WALL = 0;
 const PATH = 1;
 const MOVE_DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-const MAX_CREATURES = 20;
+const MAX_PER_TEAM = 10;
 const TAIL_RENDER_MAX = 40;
 
 const RED  = { hot: "#ff2d55", mid: "#ff6b9d", deep: "#c21858", glow: "rgba(255,45,85,0.4)" };
@@ -336,6 +336,22 @@ export default function LabyrinthLive() {
           setTimeLeft(timerRef.current);
         }
 
+        // Maintain minimum 2 crawlers per team
+        if (!cel.active && frameRef.current % 60 === 0) {
+          for (const team of ["red", "blue"]) {
+            const teamCount = creaturesRef.current.filter(c => c.team === team).length;
+            if (teamCount < 2) {
+              const b = bases[team];
+              if (b) {
+                const needed = 2 - teamCount;
+                const spots  = placeOnPath(grid, rows, b.xMin, b.xMax + 1, needed);
+                for (const { x, y } of spots)
+                  creaturesRef.current.push(makeCreature(x, y, team));
+              }
+            }
+          }
+        }
+
         // Victory: timer hits 0 → winner by score, or score threshold reached early
         const sc = scoreTotalsRef.current;
         if (!cel.active && timerRef.current <= 0) {
@@ -494,7 +510,8 @@ export default function LabyrinthLive() {
     const rows  = rowsRef.current;
     const bases = basesRef.current;
     if (!grid || !bases[team]) return;
-    const allowed = MAX_CREATURES - creaturesRef.current.length;
+    const teamCount = creaturesRef.current.filter(c => c.team === team).length;
+    const allowed   = MAX_PER_TEAM - teamCount;
     if (allowed <= 0) return;
     const b     = bases[team];
     const spots = placeOnPath(grid, rows, b.xMin, b.xMax + 1, Math.min(count, allowed));
