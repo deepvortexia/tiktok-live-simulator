@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const CELL             = 4;
-const PIXELS_TOTAL     = 30;
+const PIXELS_TOTAL     = 35;
 const BASE_FRAC        = 0.15;
 const CREATURE_INTERVAL = 4;
 const WALL = 0;
@@ -199,11 +199,22 @@ function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive, pathCach
   for (const p of pixels) {
     if (!p.carrier && p.x === x && p.y === y) {
       c.tailMax += 4;
-      // Respawn pixel to center zone using cached path cells
-      const midCells = pathCaches?.mid;
-      if (midCells && midCells.length > 0) {
-        const newSpot = midCells[Math.floor(Math.random() * midCells.length)];
-        p.x = newSpot.x; p.y = newSpot.y;
+      // Respawn pixel — try 10 candidates from full zone, pick farthest from other pixels
+      const fullCells = pathCaches?.full;
+      if (fullCells && fullCells.length > 0) {
+        let bestSpot = null, bestDist = -1;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const cand = fullCells[Math.floor(Math.random() * fullCells.length)];
+          let minDist = Infinity;
+          for (const other of pixels) {
+            if (other === p) continue;
+            const dx = cand.x - other.x, dy = cand.y - other.y;
+            const d = dx * dx + dy * dy;
+            if (d < minDist) minDist = d;
+          }
+          if (minDist > bestDist) { bestDist = minDist; bestSpot = cand; }
+        }
+        if (bestSpot) { p.x = bestSpot.x; p.y = bestSpot.y; }
       }
       onScore(c.team);
       c.path = null;
@@ -272,17 +283,19 @@ export default function LabyrinthLive() {
     const blueBase = { xMin: cols - baseCols - 1, xMax: cols - 2,          yMin: 1, yMax: rows - 2 };
     basesRef.current = { red: redBase, blue: blueBase };
 
-    const midXMin = Math.floor(cols / 3);
-    const midXMax = Math.floor(cols * 2 / 3);
-    const midPixels = placeOnPath(grid, rows, midXMin, midXMax, PIXELS_TOTAL);
-    pixelsRef.current = midPixels.map(({ x, y }) => ({ x, y, carrier: null }));
+    const midXMin      = Math.floor(cols / 3);
+    const midXMax      = Math.floor(cols * 2 / 3);
+    const fullZoneXMin = Math.floor(cols * 0.15);
+    const fullZoneXMax = Math.floor(cols * 0.85);
+    const initPixels   = placeOnPath(grid, rows, fullZoneXMin, fullZoneXMax, PIXELS_TOTAL);
+    pixelsRef.current  = initPixels.map(({ x, y }) => ({ x, y, carrier: null }));
 
-    // Pre-cache mid-zone PATH cells for O(1) pixel respawn
-    const midCells = [];
+    // Pre-cache full-zone PATH cells for pixel respawn (excludes base zones)
+    const fullZoneCells = [];
     for (let y = 1; y < rows - 1; y++)
-      for (let x = midXMin; x < midXMax; x++)
-        if (grid[y][x] === PATH) midCells.push({ x, y });
-    pathCachesRef.current = { mid: midCells };
+      for (let x = fullZoneXMin; x < fullZoneXMax; x++)
+        if (grid[y][x] === PATH) fullZoneCells.push({ x, y });
+    pathCachesRef.current = { full: fullZoneCells };
 
     const redSpots  = placeOnPath(grid, rows, redBase.xMin,  redBase.xMax  + 1, 2);
     const blueSpots = placeOnPath(grid, rows, blueBase.xMin, blueBase.xMax + 1, 2);
