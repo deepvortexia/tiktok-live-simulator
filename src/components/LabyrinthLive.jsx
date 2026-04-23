@@ -16,18 +16,22 @@ const BLUE = { hot: "#38bdf8", mid: "#6bc6ff", deep: "#1e3a8a", glow: "rgba(56,1
 const CREATURE_COLOR = { red: "#ff0044", blue: "#00ccff" };
 
 const RED_GIFTS = [
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp",     label: "Rose",         cost:  1, count: 1, radius: 2, interval: 10 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp", label: "Finger Heart", cost:  5, count: 1, radius: 3, interval:  6 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eb77ead5c3abb6da6034d3cf6cfeb438~tplv-obj.webp",     label: "Rosa",         cost: 10, count: 2, radius: 3, interval:  6 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp",     label: "Perfume",      cost: 20, count: 3, radius: 4, interval:  4 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",     label: "Doughnut",     cost: 30, count: 1, radius: 3, interval:  5, rush: true },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp",     label: "Rose",         cost:   1, count: 1, radius: 2, interval: 10 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp", label: "Finger Heart", cost:   5, count: 1, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/eb77ead5c3abb6da6034d3cf6cfeb438~tplv-obj.webp",     label: "Rosa",         cost:  10, count: 2, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp",     label: "Perfume",      cost:  20, count: 3, radius: 4, interval:  4 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",     label: "Doughnut",     cost:  30, count: 1, radius: 3, interval:  5, rush: true, rushDuration: 600 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/cb4e11b3834e149f08e1cdcc93870b26~tplv-obj.webp",     label: "Confetti",     cost: 100, count: 5, radius: 5, interval:  3, rush: true, rushDuration: 1200 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/2f1e4f3f5c728ffbfa35705b480fdc92~tplv-obj.webp",     label: "Hat+Mustache", cost: 100, count: 3, radius: 4, interval:  3, rush: true, rushDuration: 1200 },
 ];
 const BLUE_GIFTS = [
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp",                              label: "TikTok",               cost:  1, count: 1, radius: 2, interval: 10 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp",                   label: "Overreact",            cost:  5, count: 1, radius: 3, interval:  6 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/e033c3f28632e233bebac1668ff66a2f.png~tplv-obj.webp",                   label: "Friendship Necklace",  cost: 10, count: 2, radius: 3, interval:  6 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/40ba71a3b3d6b9f799d99082f36b2baa.png~tplv-obj.webp",                   label: "LIVE",                 cost: 20, count: 3, radius: 4, interval:  4 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp",                   label: "Bravo",                cost: 30, count: 1, radius: 3, interval:  5, rush: true },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp",                              label: "TikTok",               cost:   1, count: 1, radius: 2, interval: 10 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/dfd48ef1952b6d315856adda7705d02d.png~tplv-obj.webp",                   label: "Overreact",            cost:   5, count: 1, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/e033c3f28632e233bebac1668ff66a2f.png~tplv-obj.webp",                   label: "Friendship Necklace",  cost:  10, count: 2, radius: 3, interval:  6 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/40ba71a3b3d6b9f799d99082f36b2baa.png~tplv-obj.webp",                   label: "LIVE",                 cost:  20, count: 3, radius: 4, interval:  4 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp",                   label: "Bravo",                cost:  30, count: 1, radius: 3, interval:  5, rush: true, rushDuration: 600 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6cd022271dc4669d182cad856384870f~tplv-obj.webp",                               label: "Hand Heart",           cost: 100, count: 5, radius: 5, interval:  3, rush: true, rushDuration: 1200 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/0f158a08f7886189cdabf496e8a07c21~tplv-obj.webp",                                label: "Paper Crane",          cost: 100, count: 3, radius: 4, interval:  3, rush: true, rushDuration: 1200 },
 ];
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
@@ -229,7 +233,7 @@ export default function LabyrinthLive() {
   const [resetCount,     setResetCount]     = useState(0);
   const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
   const [comments,       setComments]       = useState(() => [randomComment(), randomComment(), randomComment()]);
-  const [rushDisplay,    setRushDisplay]    = useState({ red: 0, blue: 0 });
+  const [rushDisplay,    setRushDisplay]    = useState({ red: 0, blue: 0, redTotal: 1, blueTotal: 1 });
   const [timeLeft,       setTimeLeft]       = useState(180);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
@@ -277,7 +281,7 @@ export default function LabyrinthLive() {
     scoreTotalsRef.current  = { red: 0, blue: 0 };
     celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
     pendingResetRef.current = false;
-    rushRef.current = { red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } };
+    rushRef.current = { red: { active: false, endFrame: 0, totalFrames: 1 }, blue: { active: false, endFrame: 0, totalFrames: 1 } };
     setRedScore(0);
     setBlueScore(0);
     timerRef.current = 180;
@@ -325,8 +329,10 @@ export default function LabyrinthLive() {
 
         if (frameRef.current % 10 === 0) {
           setRushDisplay({
-            red:  rush.red.active  ? Math.max(0, rush.red.endFrame  - frameRef.current) : 0,
-            blue: rush.blue.active ? Math.max(0, rush.blue.endFrame - frameRef.current) : 0,
+            red:      rush.red.active  ? Math.max(0, rush.red.endFrame  - frameRef.current) : 0,
+            blue:     rush.blue.active ? Math.max(0, rush.blue.endFrame - frameRef.current) : 0,
+            redTotal:  rush.red.totalFrames,
+            blueTotal: rush.blue.totalFrames,
           });
         }
 
@@ -535,9 +541,10 @@ export default function LabyrinthLive() {
       creaturesRef.current.push(makeCreature(x, y, team, radius, interval));
   };
 
-  const activateRush = (team) => {
-    rushRef.current[team].active   = true;
-    rushRef.current[team].endFrame = frameRef.current + 900;
+  const activateRush = (team, duration) => {
+    rushRef.current[team].active      = true;
+    rushRef.current[team].endFrame    = frameRef.current + duration;
+    rushRef.current[team].totalFrames = duration;
   };
 
   const pad2 = n => String(n).padStart(2, "0");
@@ -616,7 +623,7 @@ export default function LabyrinthLive() {
               <div style={{ height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
                 <div style={{
                   height: "100%", borderRadius: 2,
-                  width: `${(rushDisplay.red / 900) * 100}%`,
+                  width: `${(rushDisplay.red / rushDisplay.redTotal) * 100}%`,
                   background: RED.hot,
                   boxShadow: `0 0 6px ${RED.hot}`,
                   transition: "width 0.1s linear",
@@ -627,7 +634,7 @@ export default function LabyrinthLive() {
               <div style={{ height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
                 <div style={{
                   height: "100%", borderRadius: 2,
-                  width: `${(rushDisplay.blue / 900) * 100}%`,
+                  width: `${(rushDisplay.blue / rushDisplay.blueTotal) * 100}%`,
                   background: BLUE.hot,
                   boxShadow: `0 0 6px ${BLUE.hot}`,
                   transition: "width 0.1s linear",
@@ -672,7 +679,7 @@ export default function LabyrinthLive() {
         {RED_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.rush) activateRush("red"); }}
+            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.rush) activateRush("red", g.rushDuration); }}
             style={{
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(255,45,85,0.25)",
@@ -702,7 +709,7 @@ export default function LabyrinthLive() {
         {BLUE_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.rush) activateRush("blue"); }}
+            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.rush) activateRush("blue", g.rushDuration); }}
             style={{
               background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
               border: "1px solid rgba(56,189,248,0.25)",
