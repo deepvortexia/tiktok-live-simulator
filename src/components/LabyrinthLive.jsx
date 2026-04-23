@@ -348,7 +348,7 @@ export default function LabyrinthLive() {
           frenzy.active = false;
 
         // Auto-frenzy every 1800 frames while game is running
-        if (!cel.active && timerRef.current > 0 && frameRef.current > 0 && frameRef.current % 1800 === 0) {
+        if (!cel.active && timerRef.current > 30 && frameRef.current > 0 && frameRef.current % 1800 === 0) {
           frenzy.active   = true;
           frenzy.endFrame = frameRef.current + 300;
           // If rush already active per team, extend it by 300 instead of double-counting
