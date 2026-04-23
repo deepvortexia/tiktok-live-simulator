@@ -632,7 +632,7 @@ export default function LabyrinthLive() {
           >
             <img src={g.icon} alt={g.label} style={{ width: 18, height: 18, objectFit: "contain", flexShrink: 0 }} />
             <span style={{ color: g.rush ? "#ffe066" : RED.mid }}>
-              {g.rush ? "⚡ RUSH" : g.count === 1 ? "+1 crawler" : `+${g.count} crawlers`}
+              {g.rush ? "⚡" : `+${g.count}`}
             </span>
           </button>
         ))}
@@ -661,7 +661,7 @@ export default function LabyrinthLive() {
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
           >
             <span style={{ color: g.rush ? "#ffe066" : BLUE.mid }}>
-              {g.rush ? "⚡ RUSH" : g.count === 1 ? "+1 crawler" : `+${g.count} crawlers`}
+              {g.rush ? "⚡" : `+${g.count}`}
             </span>
             <img src={g.icon} alt={g.label} style={{ width: 18, height: 18, objectFit: "contain", flexShrink: 0 }} />
           </button>
