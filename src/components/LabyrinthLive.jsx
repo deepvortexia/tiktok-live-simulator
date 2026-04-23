@@ -235,6 +235,7 @@ export default function LabyrinthLive() {
   const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
   const [comments,       setComments]       = useState(() => [randomComment(), randomComment(), randomComment()]);
   const [rushDisplay,    setRushDisplay]    = useState({ red: 0, blue: 0, redTotal: 1, blueTotal: 1 });
+  const [frenzyDisplay,  setFrenzyDisplay]  = useState(0);
   const [timeLeft,       setTimeLeft]       = useState(180);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
 
@@ -349,6 +350,7 @@ export default function LabyrinthLive() {
             redTotal:  rush.red.totalFrames,
             blueTotal: rush.blue.totalFrames,
           });
+          setFrenzyDisplay(frenzy.active ? Math.max(0, frenzy.endFrame - frameRef.current) : 0);
         }
 
         if (frameRef.current % 30 === 0) {
@@ -548,7 +550,7 @@ export default function LabyrinthLive() {
           ctx.shadowBlur   = 24;
           ctx.shadowColor  = "#ffe066";
           ctx.fillStyle    = "#ffe066";
-          ctx.fillText("⚡ FRENZY!", canvas.width / 2, canvas.height / 2);
+          ctx.fillText("⚡ FRENZY!", canvas.width / 2, canvas.height * 0.25);
         }
 
         ctx.shadowBlur = 0;
@@ -650,6 +652,19 @@ export default function LabyrinthLive() {
         }}>
           {`${String(Math.floor(timeLeft / 60)).padStart(2, "0")}:${String(timeLeft % 60).padStart(2, "0")}`}
         </div>
+
+        {/* Frenzy countdown bar */}
+        {frenzyDisplay > 0 && (
+          <div style={{ width: 200, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 2,
+              width: `${(frenzyDisplay / 300) * 100}%`,
+              background: "#ffe066",
+              boxShadow: "0 0 8px #ffe066",
+              transition: "width 0.1s linear",
+            }} />
+          </div>
+        )}
 
         {/* Rush timer bars */}
         {(rushDisplay.red > 0 || rushDisplay.blue > 0) && (
