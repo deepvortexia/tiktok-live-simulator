@@ -463,7 +463,7 @@ export default function LabyrinthLive() {
           ctx.font         = `bold ${fontSize}px 'Courier New', monospace`;
           ctx.textAlign    = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height / 2);
+          ctx.fillText(`${cel.winner.toUpperCase()} WINS!`, canvas.width / 2, canvas.height * 0.25);
 
           if (frameRef.current >= cel.endFrame) pendingResetRef.current = true;
         }
