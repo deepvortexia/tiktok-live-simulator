@@ -550,7 +550,7 @@ export default function LabyrinthLive() {
           ctx.shadowBlur   = 24;
           ctx.shadowColor  = "#ffe066";
           ctx.fillStyle    = "#ffe066";
-          ctx.fillText("⚡ FRENZY!", canvas.width / 2, canvas.height * 0.25);
+          ctx.fillText("⚡ RUSH!", canvas.width / 2, canvas.height * 0.25);
         }
 
         ctx.shadowBlur = 0;
@@ -657,7 +657,7 @@ export default function LabyrinthLive() {
         {frenzyDisplay > 0 && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "#ffe066", opacity: 0.85 }}>
-              ⚡ NEXT FRENZY
+              ⚡ NEXT RUSH
             </span>
             <div style={{ width: 200, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
               <div style={{
