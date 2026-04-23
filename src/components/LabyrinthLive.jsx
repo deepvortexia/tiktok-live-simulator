@@ -129,8 +129,9 @@ function bfsPath(grid, cols, rows, sx, sy, isTarget) {
   const startKey = sy * cols + sx;
   const parent   = new Map([[startKey, -1]]);
   const queue    = [startKey];
-  while (queue.length) {
-    const curKey = queue.shift();
+  let head = 0;
+  while (head < queue.length) {
+    const curKey = queue[head++];
     const cx = curKey % cols;
     const cy = (curKey - cx) / cols;
     for (const [dx, dy] of MOVE_DIRS) {
@@ -169,7 +170,7 @@ function makeCreature(x, y, team, radius = 4, interval = CREATURE_INTERVAL) {
   };
 }
 
-function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive) {
+function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive, pathCaches) {
   c.moveTimer--;
   if (c.moveTimer > 0) return;
   c.moveTimer = rushActive ? Math.max(1, Math.floor(c.interval / 3)) : c.interval;
@@ -198,11 +199,12 @@ function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive) {
   for (const p of pixels) {
     if (!p.carrier && p.x === x && p.y === y) {
       c.tailMax += 4;
-      // Respawn pixel to center zone immediately
-      const midXMin = Math.floor(cols / 3);
-      const midXMax = Math.floor(cols * 2 / 3);
-      const newSpot = placeOnPath(grid, rows, midXMin, midXMax, 1)[0];
-      if (newSpot) { p.x = newSpot.x; p.y = newSpot.y; }
+      // Respawn pixel to center zone using cached path cells
+      const midCells = pathCaches?.mid;
+      if (midCells && midCells.length > 0) {
+        const newSpot = midCells[Math.floor(Math.random() * midCells.length)];
+        p.x = newSpot.x; p.y = newSpot.y;
+      }
       onScore(c.team);
       c.path = null;
       break;
@@ -212,7 +214,9 @@ function stepCreature(c, grid, cols, rows, pixels, onScore, rushActive) {
 
 export default function LabyrinthLive() {
   const canvasRef       = useRef(null);
+  const ctxRef          = useRef(null);
   const mazeLayerRef    = useRef(null);
+  const pathCachesRef   = useRef({ mid: [] });
   const gridRef         = useRef(null);
   const colsRef         = useRef(0);
   const rowsRef         = useRef(0);
@@ -273,6 +277,13 @@ export default function LabyrinthLive() {
     const midPixels = placeOnPath(grid, rows, midXMin, midXMax, PIXELS_TOTAL);
     pixelsRef.current = midPixels.map(({ x, y }) => ({ x, y, carrier: null }));
 
+    // Pre-cache mid-zone PATH cells for O(1) pixel respawn
+    const midCells = [];
+    for (let y = 1; y < rows - 1; y++)
+      for (let x = midXMin; x < midXMax; x++)
+        if (grid[y][x] === PATH) midCells.push({ x, y });
+    pathCachesRef.current = { mid: midCells };
+
     const redSpots  = placeOnPath(grid, rows, redBase.xMin,  redBase.xMax  + 1, 2);
     const blueSpots = placeOnPath(grid, rows, blueBase.xMin, blueBase.xMax + 1, 2);
     creaturesRef.current = [
@@ -302,6 +313,8 @@ export default function LabyrinthLive() {
         pendingResetRef.current = false;
         setResetCount(n => n + 1);
       }
+
+      if (canvas && !ctxRef.current) ctxRef.current = canvas.getContext("2d");
 
       if (canvas && maze && grid) {
         const cols   = colsRef.current;
@@ -340,7 +353,7 @@ export default function LabyrinthLive() {
             else setBlueScore(total);
           };
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active || frenzy.active);
+            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active || frenzy.active, pathCachesRef.current);
         }
 
         if (frameRef.current % 10 === 0) {
@@ -405,7 +418,7 @@ export default function LabyrinthLive() {
           celebrationRef.current = { active: true, winner, endFrame: frameRef.current + 180, particles };
         }
 
-        const ctx = canvas.getContext("2d");
+        const ctx = ctxRef.current;
 
         // Rebuild maze layer when the winning team changes
         const sc2 = scoreTotalsRef.current;
@@ -457,8 +470,7 @@ export default function LabyrinthLive() {
           const tailStart = Math.max(0, c.tail.length - TAIL_RENDER_MAX);
           const visLen    = c.tail.length - tailStart;
           if (visLen > 0) {
-            ctx.shadowBlur  = isRushing ? 12 : 6;
-            ctx.shadowColor = isRushing ? "#ffffff" : bodyColor;
+            ctx.shadowBlur  = 0;
             ctx.fillStyle   = bodyColor;
             for (let i = tailStart; i < c.tail.length; i++) {
               const t    = c.tail[i];
@@ -736,7 +748,7 @@ export default function LabyrinthLive() {
             key={g.label}
             onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.rush) activateRush("red", g.rushDuration); }}
             style={{
-              background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
+              background: "rgba(0,0,0,0.72)",
               border: "1px solid rgba(255,45,85,0.25)",
               borderLeft: "2px solid rgba(255,45,85,0.7)",
               borderRadius: 5, color: "#fff",
@@ -766,7 +778,7 @@ export default function LabyrinthLive() {
             key={g.label}
             onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.rush) activateRush("blue", g.rushDuration); }}
             style={{
-              background: "rgba(0,0,0,0.58)", backdropFilter: "blur(8px)",
+              background: "rgba(0,0,0,0.72)",
               border: "1px solid rgba(56,189,248,0.25)",
               borderRight: "2px solid rgba(56,189,248,0.7)",
               borderRadius: 5, color: "#fff",
