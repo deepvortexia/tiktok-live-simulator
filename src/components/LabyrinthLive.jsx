@@ -22,7 +22,7 @@ const RED_GIFTS = [
   { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp",     label: "Perfume",      cost:  20, count: 3, radius: 4, interval:  4 },
   { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp",     label: "Doughnut",     cost:  30, count: 1, radius: 3, interval:  5, rush: true, rushDuration: 600 },
   { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/cb4e11b3834e149f08e1cdcc93870b26~tplv-obj.webp",     label: "Confetti",     cost: 100, count: 5, radius: 5, interval:  3, rush: true, rushDuration: 1200 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/2f1e4f3f5c728ffbfa35705b480fdc92~tplv-obj.webp",     label: "Hat+Mustache", cost: 100, count: 3, radius: 4, interval:  3, rush: true, rushDuration: 1200 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/2f1e4f3f5c728ffbfa35705b480fdc92~tplv-obj.webp",     label: "Hat+Mustache", cost: 100, count: 3, radius: 4, interval:  3, rush: true, rushDuration: 1800 },
 ];
 const BLUE_GIFTS = [
   { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp",                              label: "TikTok",               cost:   1, count: 1, radius: 2, interval: 10 },
@@ -31,7 +31,7 @@ const BLUE_GIFTS = [
   { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/40ba71a3b3d6b9f799d99082f36b2baa.png~tplv-obj.webp",                   label: "LIVE",                 cost:  20, count: 3, radius: 4, interval:  4 },
   { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/resource/075e206d6da035f10ff5f8fecd82abcc.png~tplv-obj.webp",                   label: "Bravo",                cost:  30, count: 1, radius: 3, interval:  5, rush: true, rushDuration: 600 },
   { icon: "https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6cd022271dc4669d182cad856384870f~tplv-obj.webp",                               label: "Hand Heart",           cost: 100, count: 5, radius: 5, interval:  3, rush: true, rushDuration: 1200 },
-  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/0f158a08f7886189cdabf496e8a07c21~tplv-obj.webp",                                label: "Paper Crane",          cost: 100, count: 3, radius: 4, interval:  3, rush: true, rushDuration: 1200 },
+  { icon: "https://p16-webcast.tiktokcdn.com/img/alisg/webcast-sg/0f158a08f7886189cdabf496e8a07c21~tplv-obj.webp",                                label: "Paper Crane",          cost: 100, count: 3, radius: 4, interval:  3, rush: true, rushDuration: 1800 },
 ];
 
 const oddify = n => (n % 2 === 0 ? n - 1 : n);
@@ -245,7 +245,10 @@ export default function LabyrinthLive() {
   const scoreTotalsRef  = useRef({ red: 0, blue: 0 });
   const celebrationRef  = useRef({ active: false, winner: null, endFrame: 0, particles: [] });
   const pendingResetRef = useRef(false);
-  const rushRef         = useRef({ red: { active: false, endFrame: 0 }, blue: { active: false, endFrame: 0 } });
+  const rushRef         = useRef({
+    red:  { t1: { active: false, endFrame: 0, totalFrames: 1 }, t2: { active: false, endFrame: 0, totalFrames: 1 }, t3: { active: false, endFrame: 0, totalFrames: 1 } },
+    blue: { t1: { active: false, endFrame: 0, totalFrames: 1 }, t2: { active: false, endFrame: 0, totalFrames: 1 }, t3: { active: false, endFrame: 0, totalFrames: 1 } },
+  });
   const frenzyRef       = useRef({ active: false, endFrame: 0 });
   const timerRef        = useRef(180);
   const wallColorStateRef = useRef("tied");
@@ -255,7 +258,10 @@ export default function LabyrinthLive() {
   const [resetCount,     setResetCount]     = useState(0);
   const [creatureCounts, setCreatureCounts] = useState({ red: 2, blue: 2 });
   const [comments,       setComments]       = useState(() => [randomComment(), randomComment(), randomComment()]);
-  const [rushDisplay,    setRushDisplay]    = useState({ red: 0, blue: 0, redTotal: 1, blueTotal: 1 });
+  const [rushDisplay,    setRushDisplay]    = useState({
+    red:  [{ frames: 0, total: 1 }, { frames: 0, total: 1 }, { frames: 0, total: 1 }],
+    blue: [{ frames: 0, total: 1 }, { frames: 0, total: 1 }, { frames: 0, total: 1 }],
+  });
   const [frenzyDisplay,  setFrenzyDisplay]  = useState(0);
   const [timeLeft,       setTimeLeft]       = useState(180);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -322,7 +328,10 @@ export default function LabyrinthLive() {
     scoreTotalsRef.current  = { red: 0, blue: 0 };
     celebrationRef.current  = { active: false, winner: null, endFrame: 0, particles: [] };
     pendingResetRef.current = false;
-    rushRef.current   = { red: { active: false, endFrame: 0, totalFrames: 1 }, blue: { active: false, endFrame: 0, totalFrames: 1 } };
+    rushRef.current   = {
+      red:  { t1: { active: false, endFrame: 0, totalFrames: 1 }, t2: { active: false, endFrame: 0, totalFrames: 1 }, t3: { active: false, endFrame: 0, totalFrames: 1 } },
+      blue: { t1: { active: false, endFrame: 0, totalFrames: 1 }, t2: { active: false, endFrame: 0, totalFrames: 1 }, t3: { active: false, endFrame: 0, totalFrames: 1 } },
+    };
     frenzyRef.current = { active: false, endFrame: 0 };
     setRedScore(0);
     setBlueScore(0);
@@ -356,8 +365,9 @@ export default function LabyrinthLive() {
         frameRef.current++;
 
         for (const team of ["red", "blue"])
-          if (rush[team].active && frameRef.current >= rush[team].endFrame)
-            rush[team].active = false;
+          for (const tier of ["t1", "t2", "t3"])
+            if (rush[team][tier].active && frameRef.current >= rush[team][tier].endFrame)
+              rush[team][tier].active = false;
 
         if (frenzy.active && frameRef.current >= frenzy.endFrame)
           frenzy.active = false;
@@ -368,7 +378,8 @@ export default function LabyrinthLive() {
           frenzy.endFrame = frameRef.current + 300;
           // If rush already active per team, extend it by 300 instead of double-counting
           for (const team of ["red", "blue"])
-            if (rush[team].active) rush[team].endFrame += 300;
+            for (const tier of ["t1", "t2", "t3"])
+              if (rush[team][tier].active) rush[team][tier].endFrame += 300;
         }
 
         if (!cel.active) {
@@ -382,15 +393,19 @@ export default function LabyrinthLive() {
             else setBlueScore(scoreTotalsRef.current.blue);
           };
           for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].active || frenzy.active, pathCachesRef.current, pixelKeySet);
+            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].t1.active || rush[c.team].t2.active || rush[c.team].t3.active || frenzy.active, pathCachesRef.current, pixelKeySet);
         }
 
         if (frameRef.current % 10 === 0) {
           setRushDisplay({
-            red:      rush.red.active  ? Math.max(0, rush.red.endFrame  - frameRef.current) : 0,
-            blue:     rush.blue.active ? Math.max(0, rush.blue.endFrame - frameRef.current) : 0,
-            redTotal:  rush.red.totalFrames,
-            blueTotal: rush.blue.totalFrames,
+            red:  ["t1","t2","t3"].map(k => ({
+              frames: rush.red[k].active  ? Math.max(0, rush.red[k].endFrame  - frameRef.current) : 0,
+              total:  rush.red[k].totalFrames,
+            })),
+            blue: ["t1","t2","t3"].map(k => ({
+              frames: rush.blue[k].active ? Math.max(0, rush.blue[k].endFrame - frameRef.current) : 0,
+              total:  rush.blue[k].totalFrames,
+            })),
           });
           setFrenzyDisplay(!cel.active && timerRef.current > 0 ? 1800 - (frameRef.current % 1800) : 0);
         }
@@ -474,7 +489,7 @@ export default function LabyrinthLive() {
         }
 
         // ── White pixels — steady normally, flash during rush ─────────────
-        const isRushActive = rushRef.current.red.active || rushRef.current.blue.active || frenzyRef.current.active;
+        const isRushActive = ["t1","t2","t3"].some(k => rushRef.current.red[k].active || rushRef.current.blue[k].active) || frenzyRef.current.active;
         ctx.shadowColor = "#ffffff";
         ctx.fillStyle   = "#ffffff";
         for (let i = 0; i < pixels.length; i++) {
@@ -503,7 +518,7 @@ export default function LabyrinthLive() {
           const cx         = c.x * CELL + CELL / 2;
           const cy         = c.y * CELL + CELL / 2;
           const dancing    = cel.active;
-          const isRushing  = rush[c.team].active;
+          const isRushing  = rush[c.team].t1.active || rush[c.team].t2.active || rush[c.team].t3.active;
           const danceScale = dancing ? (1.5 + Math.sin(time * 0.018 + c.x * 0.7) * 0.5) : 1;
 
           // Snake tail — render up to TAIL_RENDER_MAX dots, oldest first = most faded
@@ -626,9 +641,10 @@ export default function LabyrinthLive() {
   };
 
   const activateRush = (team, duration) => {
-    rushRef.current[team].active      = true;
-    rushRef.current[team].endFrame    = frameRef.current + duration;
-    rushRef.current[team].totalFrames = duration;
+    const tierKey = duration <= 600 ? "t1" : duration <= 1200 ? "t2" : "t3";
+    rushRef.current[team][tierKey].active      = true;
+    rushRef.current[team][tierKey].endFrame    = frameRef.current + duration;
+    rushRef.current[team][tierKey].totalFrames = duration;
   };
 
   const pad2 = n => String(n).padStart(2, "0");
@@ -718,33 +734,38 @@ export default function LabyrinthLive() {
           </div>
         )}
 
-        {/* Rush timer bars */}
-        {(rushDisplay.red > 0 || rushDisplay.blue > 0) && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 3, width: 200 }}>
-            {rushDisplay.red > 0 && (
-              <div style={{ height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", borderRadius: 2,
-                  width: `${(rushDisplay.red / rushDisplay.redTotal) * 100}%`,
-                  background: RED.hot,
-                  boxShadow: `0 0 6px ${RED.hot}`,
-                  transition: "width 0.1s linear",
-                }} />
-              </div>
-            )}
-            {rushDisplay.blue > 0 && (
-              <div style={{ height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", borderRadius: 2,
-                  width: `${(rushDisplay.blue / rushDisplay.blueTotal) * 100}%`,
-                  background: BLUE.hot,
-                  boxShadow: `0 0 6px ${BLUE.hot}`,
-                  transition: "width 0.1s linear",
-                }} />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Rush tier bars — always visible, 3 tiers per team */}
+        <div style={{ display: "flex", gap: 10 }}>
+          {[
+            { team: "red",  tiers: rushDisplay.red },
+            { team: "blue", tiers: rushDisplay.blue },
+          ].map(({ team, tiers }) => (
+            <div key={team} style={{ display: "flex", flexDirection: "column", gap: 3, width: 90 }}>
+              {[
+                { label: "x1", color: "#ffe066" },
+                { label: "x2", color: "#ff9900" },
+                { label: "x3", color: "#ff2d55" },
+              ].map(({ label, color }, i) => {
+                const d = tiers[i];
+                const active = d.frames > 0;
+                return (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, width: 14, textAlign: "right", fontFamily: "'Courier New', monospace", color: active ? color : "rgba(255,255,255,0.22)" }}>{label}</span>
+                    <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", borderRadius: 2,
+                        width: active ? `${(d.frames / d.total) * 100}%` : "0%",
+                        background: active ? color : "transparent",
+                        boxShadow: active ? `0 0 6px ${color}` : "none",
+                        transition: "width 0.1s linear",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* TikTok comment feed — bottom-right */}
@@ -777,7 +798,7 @@ export default function LabyrinthLive() {
       {/* Red gift buttons — left column */}
       <div style={{
         position: "absolute", left: 8, top: "50%", transform: "translateY(calc(-50% - 80px))",
-        display: "flex", flexDirection: "column", gap: 2, zIndex: 10, maxWidth: 140,
+        display: "flex", flexDirection: "column", gap: 3, zIndex: 10, maxWidth: 168,
       }}>
         {RED_GIFTS.map(g => (
           <button
@@ -788,17 +809,17 @@ export default function LabyrinthLive() {
               border: "1px solid rgba(255,45,85,0.25)",
               borderLeft: "2px solid rgba(255,45,85,0.7)",
               borderRadius: 5, color: "#fff",
-              fontSize: 9, fontFamily: "'Courier New', monospace",
-              padding: "2px 5px", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 4,
+              fontSize: 11, fontFamily: "'Courier New', monospace",
+              padding: "3px 6px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5,
               whiteSpace: "nowrap", width: "100%",
             }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,45,85,0.18)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
           >
-            <img src={g.icon} alt={g.label} style={{ width: 18, height: 18, objectFit: "contain", flexShrink: 0 }} />
+            <img src={g.icon} alt={g.label} style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }} />
             <span style={{ color: g.rush ? "#ffe066" : RED.mid }}>
-              {g.rush ? <b>RUSH</b> : `+${g.count}`}
+              {g.rush ? <b>RUSH x{g.rushDuration / 600}</b> : `+${g.count}`}
             </span>
           </button>
         ))}
@@ -807,7 +828,7 @@ export default function LabyrinthLive() {
       {/* Blue gift buttons — right column */}
       <div style={{
         position: "absolute", right: 8, top: "50%", transform: "translateY(calc(-50% - 80px))",
-        display: "flex", flexDirection: "column", gap: 2, zIndex: 10, maxWidth: 140,
+        display: "flex", flexDirection: "column", gap: 3, zIndex: 10, maxWidth: 168,
       }}>
         {BLUE_GIFTS.map(g => (
           <button
@@ -818,18 +839,18 @@ export default function LabyrinthLive() {
               border: "1px solid rgba(56,189,248,0.25)",
               borderRight: "2px solid rgba(56,189,248,0.7)",
               borderRadius: 5, color: "#fff",
-              fontSize: 9, fontFamily: "'Courier New', monospace",
-              padding: "2px 5px", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 4,
+              fontSize: 11, fontFamily: "'Courier New', monospace",
+              padding: "3px 6px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 5,
               whiteSpace: "nowrap", width: "100%",
             }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(56,189,248,0.18)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,0,0,0.58)"; }}
           >
             <span style={{ color: g.rush ? "#ffe066" : BLUE.mid }}>
-              {g.rush ? <b>RUSH</b> : `+${g.count}`}
+              {g.rush ? <b>RUSH x{g.rushDuration / 600}</b> : `+${g.count}`}
             </span>
-            <img src={g.icon} alt={g.label} style={{ width: 18, height: 18, objectFit: "contain", flexShrink: 0 }} />
+            <img src={g.icon} alt={g.label} style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }} />
           </button>
         ))}
       </div>
