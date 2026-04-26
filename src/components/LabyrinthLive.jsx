@@ -250,6 +250,10 @@ export default function LabyrinthLive() {
     blue: { t1: { active: false, endFrame: 0, totalFrames: 1 }, t2: { active: false, endFrame: 0, totalFrames: 1 }, t3: { active: false, endFrame: 0, totalFrames: 1 } },
   });
   const frenzyRef       = useRef({ active: false, endFrame: 0 });
+  const rushDisplayBufRef = useRef({
+    red:  [{ frames: 0, total: 1 }, { frames: 0, total: 1 }, { frames: 0, total: 1 }],
+    blue: [{ frames: 0, total: 1 }, { frames: 0, total: 1 }, { frames: 0, total: 1 }],
+  });
   const timerRef        = useRef(180);
   const wallColorStateRef = useRef("tied");
 
@@ -364,10 +368,13 @@ export default function LabyrinthLive() {
 
         frameRef.current++;
 
-        for (const team of ["red", "blue"])
-          for (const tier of ["t1", "t2", "t3"])
-            if (rush[team][tier].active && frameRef.current >= rush[team][tier].endFrame)
-              rush[team][tier].active = false;
+        if (rush.red.t1.active || rush.red.t2.active || rush.red.t3.active ||
+            rush.blue.t1.active || rush.blue.t2.active || rush.blue.t3.active) {
+          for (const team of ["red", "blue"])
+            for (const tier of ["t1", "t2", "t3"])
+              if (rush[team][tier].active && frameRef.current >= rush[team][tier].endFrame)
+                rush[team][tier].active = false;
+        }
 
         if (frenzy.active && frameRef.current >= frenzy.endFrame)
           frenzy.active = false;
@@ -382,6 +389,10 @@ export default function LabyrinthLive() {
               if (rush[team][tier].active) rush[team][tier].endFrame += 300;
         }
 
+        const isRushActive = rush.red.t1.active || rush.red.t2.active || rush.red.t3.active ||
+                             rush.blue.t1.active || rush.blue.t2.active || rush.blue.t3.active ||
+                             frenzy.active;
+
         if (!cel.active) {
           // Build pixel key set once per frame — shared across all stepCreature calls
           const pixelKeySet = new Set();
@@ -392,22 +403,26 @@ export default function LabyrinthLive() {
             if (team === "red") setRedScore(scoreTotalsRef.current.red);
             else setBlueScore(scoreTotalsRef.current.blue);
           };
-          for (const c of creaturesRef.current)
-            stepCreature(c, grid, cols, rows, pixels, onScore, rush[c.team].t1.active || rush[c.team].t2.active || rush[c.team].t3.active || frenzy.active, pathCachesRef.current, pixelKeySet);
+          for (const c of creaturesRef.current) {
+            const t = rush[c.team];
+            const isRushing = t.t1.active || t.t2.active || t.t3.active;
+            stepCreature(c, grid, cols, rows, pixels, onScore, isRushing || frenzy.active, pathCachesRef.current, pixelKeySet);
+          }
         }
 
         if (frameRef.current % 10 === 0) {
-          setRushDisplay({
-            red:  ["t1","t2","t3"].map(k => ({
-              frames: rush.red[k].active  ? Math.max(0, rush.red[k].endFrame  - frameRef.current) : 0,
-              total:  rush.red[k].totalFrames,
-            })),
-            blue: ["t1","t2","t3"].map(k => ({
-              frames: rush.blue[k].active ? Math.max(0, rush.blue[k].endFrame - frameRef.current) : 0,
-              total:  rush.blue[k].totalFrames,
-            })),
-          });
-          setFrenzyDisplay(!cel.active && timerRef.current > 0 ? 1800 - (frameRef.current % 1800) : 0);
+          const buf = rushDisplayBufRef.current;
+          const frame = frameRef.current;
+          const tks = ["t1", "t2", "t3"];
+          for (let i = 0; i < 3; i++) {
+            const k = tks[i];
+            buf.red[i].frames  = rush.red[k].active  ? Math.max(0, rush.red[k].endFrame  - frame) : 0;
+            buf.red[i].total   = rush.red[k].totalFrames;
+            buf.blue[i].frames = rush.blue[k].active ? Math.max(0, rush.blue[k].endFrame - frame) : 0;
+            buf.blue[i].total  = rush.blue[k].totalFrames;
+          }
+          setRushDisplay({ red: buf.red, blue: buf.blue });
+          setFrenzyDisplay(!cel.active && timerRef.current > 0 ? 1800 - (frame % 1800) : 0);
         }
 
         if (frameRef.current % 30 === 0) {
@@ -489,7 +504,6 @@ export default function LabyrinthLive() {
         }
 
         // ── White pixels — steady normally, flash during rush ─────────────
-        const isRushActive = ["t1","t2","t3"].some(k => rushRef.current.red[k].active || rushRef.current.blue[k].active) || frenzyRef.current.active;
         ctx.shadowColor = "#ffffff";
         ctx.fillStyle   = "#ffffff";
         for (let i = 0; i < pixels.length; i++) {
@@ -734,7 +748,7 @@ export default function LabyrinthLive() {
           </div>
         )}
 
-        {/* Rush tier bars — always visible, 3 tiers per team */}
+        {/* Rush tier bars — only rendered while active */}
         <div style={{ display: "flex", gap: 10 }}>
           {[
             { team: "red",  tiers: rushDisplay.red },
@@ -747,16 +761,16 @@ export default function LabyrinthLive() {
                 { label: "x3", color: "#ff2d55" },
               ].map(({ label, color }, i) => {
                 const d = tiers[i];
-                const active = d.frames > 0;
+                if (d.frames <= 0) return null;
                 return (
                   <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, width: 14, textAlign: "right", fontFamily: "'Courier New', monospace", color: active ? color : "rgba(255,255,255,0.22)" }}>{label}</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, width: 14, textAlign: "right", fontFamily: "'Courier New', monospace", color }}>{label}</span>
                     <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, overflow: "hidden" }}>
                       <div style={{
                         height: "100%", borderRadius: 2,
-                        width: active ? `${(d.frames / d.total) * 100}%` : "0%",
-                        background: active ? color : "transparent",
-                        boxShadow: active ? `0 0 6px ${color}` : "none",
+                        width: `${(d.frames / d.total) * 100}%`,
+                        background: color,
+                        boxShadow: `0 0 6px ${color}`,
                         transition: "width 0.1s linear",
                       }} />
                     </div>
