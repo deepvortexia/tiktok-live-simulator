@@ -43,6 +43,9 @@ const VIEWER_NAMES = [
   "viewerXL", "luckystar_", "techguru01", "vibecheck99", "shadow_wolf",
   "neon_rider", "cosmic_dust", "fire_storm7", "ice_queen_", "blaze_runner",
 ];
+const TOAST_NAMES = ["coolguy88", "pixel_queen", "neon_rider", "blaze_runner", "shadow_wolf", "gamer_x42", "ice_queen_", "maze_hunter"];
+const randomToastName = () => TOAST_NAMES[Math.floor(Math.random() * TOAST_NAMES.length)];
+
 const COMMENT_TEMPLATES = [
   n => `${n} joined`,
   n => `${n} followed`,
@@ -256,6 +259,13 @@ export default function LabyrinthLive() {
   const [frenzyDisplay,  setFrenzyDisplay]  = useState(0);
   const [timeLeft,       setTimeLeft]       = useState(180);
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (text) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, text }].slice(-3));
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2500);
+  };
 
   useEffect(() => {
     const onResize = () => setVp({ w: window.innerWidth, h: window.innerHeight });
@@ -265,7 +275,9 @@ export default function LabyrinthLive() {
 
   useEffect(() => {
     const id = setInterval(() => {
-      setComments(prev => [...prev, randomComment()].slice(-5));
+      const c = randomComment();
+      setComments(prev => [...prev, c].slice(-5));
+      if (c.text.includes("joined")) addToast(c.text);
     }, 3000);
     return () => clearInterval(id);
   }, []);
@@ -578,14 +590,14 @@ export default function LabyrinthLive() {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.globalAlpha = 1;
           }
-          const frenzySize = Math.min(canvas.width / 7, 72);
+          const frenzySize = Math.min(canvas.width / 7, 72) * 0.75;
           ctx.font         = `bold ${frenzySize}px 'Courier New', monospace`;
           ctx.textAlign    = "center";
           ctx.textBaseline = "middle";
           ctx.shadowBlur   = 24;
           ctx.shadowColor  = "#ffe066";
           ctx.fillStyle    = "#ffe066";
-          ctx.fillText("⚡ RUSH!", canvas.width / 2, canvas.height * 0.25);
+          ctx.fillText("⚡ RUSH!", canvas.width / 2, canvas.height * 0.25 + 25);
         }
 
         ctx.shadowBlur = 0;
@@ -735,9 +747,9 @@ export default function LabyrinthLive() {
         )}
       </div>
 
-      {/* TikTok comment feed — bottom-left */}
+      {/* TikTok comment feed — bottom-right */}
       <div style={{
-        position: "absolute", bottom: 20, left: 16,
+        position: "absolute", bottom: 20, right: 8,
         display: "flex", flexDirection: "column", gap: 4,
         maxWidth: 280, pointerEvents: "none", zIndex: 10,
       }}>
@@ -755,6 +767,7 @@ export default function LabyrinthLive() {
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            textAlign: "right",
           }}>
             {c.text}
           </div>
@@ -763,13 +776,13 @@ export default function LabyrinthLive() {
 
       {/* Red gift buttons — left column */}
       <div style={{
-        position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+        position: "absolute", left: 8, top: "50%", transform: "translateY(calc(-50% - 80px))",
         display: "flex", flexDirection: "column", gap: 2, zIndex: 10, maxWidth: 140,
       }}>
         {RED_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.rush) activateRush("red", g.rushDuration); }}
+            onClick={() => { spawnForTeam("red", g.radius, g.interval, g.count); if (g.rush) activateRush("red", g.rushDuration); addToast(`${randomToastName()} gifted 🎁 ${g.label}`); }}
             style={{
               background: "rgba(0,0,0,0.72)",
               border: "1px solid rgba(255,45,85,0.25)",
@@ -793,13 +806,13 @@ export default function LabyrinthLive() {
 
       {/* Blue gift buttons — right column */}
       <div style={{
-        position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+        position: "absolute", right: 8, top: "50%", transform: "translateY(calc(-50% - 80px))",
         display: "flex", flexDirection: "column", gap: 2, zIndex: 10, maxWidth: 140,
       }}>
         {BLUE_GIFTS.map(g => (
           <button
             key={g.label}
-            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.rush) activateRush("blue", g.rushDuration); }}
+            onClick={() => { spawnForTeam("blue", g.radius, g.interval, g.count); if (g.rush) activateRush("blue", g.rushDuration); addToast(`${randomToastName()} gifted 🎁 ${g.label}`); }}
             style={{
               background: "rgba(0,0,0,0.72)",
               border: "1px solid rgba(56,189,248,0.25)",
@@ -821,9 +834,40 @@ export default function LabyrinthLive() {
         ))}
       </div>
 
+      {/* Toast notifications */}
+      <div style={{
+        position: "absolute", top: 400, right: 8,
+        display: "flex", flexDirection: "column-reverse", gap: 4,
+        zIndex: 100, pointerEvents: "none",
+      }}>
+        {toasts.map(t => (
+          <div key={t.id} className="toast-slide-in" style={{
+            background: "rgba(0,0,0,0.82)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 8,
+            color: "#fff",
+            fontSize: 11,
+            fontFamily: "'Courier New', monospace",
+            padding: "5px 12px",
+            whiteSpace: "nowrap",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.5)",
+          }}>
+            {t.text}
+          </div>
+        ))}
+      </div>
+
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; overflow: hidden; }
+        @keyframes toast-in {
+          from { transform: translateX(110%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+        .toast-slide-in {
+          animation: toast-in 0.25s ease-out forwards;
+        }
       `}</style>
     </div>
   );
